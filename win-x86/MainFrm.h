@@ -42,15 +42,12 @@ __published:	// IDE-managed Components
         void __fastcall Button2Click(TObject *Sender);
 private:	// User declarations
         //void init_audio_buffer();
-        HANDLE hRecord, hPlay;
-	HANDLE eventRecord, eventPlay;
-	DWORD threadRecord, threadPlay;
-
-        AUDIOBUF buffers[BUFCOUNT];
-        pAUDIOBUF pHeaderPut;//生产者链表头
-        pAUDIOBUF pHeaderGet;//消费者链表头
+        HANDLE hRecord, hPlay, hUDPSend;
+	HANDLE eventRecord, eventPlay, eventUDPSend;
+	DWORD threadRecord, threadPlay, threadUDPSend;
 
         static DWORD WINAPI voice_record_thread_runner(LPVOID lpParam);
+        static DWORD WINAPI voice_udpsend_thread_runner(LPVOID lpParam);
         void init_audio_buffer();//初始化音频缓冲区
 public:		// User declarations
         __fastcall TMainForm(TComponent* Owner);
