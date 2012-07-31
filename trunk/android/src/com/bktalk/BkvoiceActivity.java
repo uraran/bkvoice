@@ -19,7 +19,7 @@ import android.util.Log;
 public class BkvoiceActivity extends Activity {
 	final CircularBuffer<byte[]> cBuffer = new CircularBuffer<byte[]>(2048);  //环形缓冲区
 
-	static final int frequency = 8000;
+	static final int frequency = 16000;
 	static final int channelConfiguration = AudioFormat.CHANNEL_CONFIGURATION_MONO;
 	static final int audioEncoding = AudioFormat.ENCODING_PCM_16BIT;
 	AudioTrack audioTrack;
@@ -55,7 +55,7 @@ public class BkvoiceActivity extends Activity {
 			
 			while(true)
 			{
-				audioTrack.write(cBuffer.getElement(), 0, 128);
+				audioTrack.write(cBuffer.getElement(), 0, 160);
 			}
 		}
     	
