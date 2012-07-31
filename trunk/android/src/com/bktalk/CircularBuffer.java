@@ -22,9 +22,9 @@ enum ThreadState{
     INTERRUPT   /*中断,(暂时用不到)*/  
 }  
 
-public class CircularBuffer<T> {
+public class CircularBuffer {
 
-    private Object[] buffer = null; // 数据容器   
+    private byte[][] buffer = null; // 数据容器   
     private int capacity    = 0;    // 缓冲区长度   
     private int indexForPut = 0;    // put索引 （下一个要写入的位置）  
     private int indexForGet = 0;    // get索引 （下一个要读取的位置）  
@@ -39,14 +39,14 @@ public class CircularBuffer<T> {
      */  
     public CircularBuffer(int capacity) {  
         this.capacity = capacity;  
-        this.buffer = new String[this.capacity];  
+        //this.buffer = new byte[this.capacity][160];  
     }  
   
     /** 
      * 写入数据，注意此函数会导致阻塞 
      * @param element 
      */  
-    public void putElement( T element) {  
+    public void putElement(byte[] element) {  
         // 有空位就插入～  
         // 没空位就轮询，直到有空位可插入为止~  
         while (null != this.buffer[this.indexForPut]) {  
@@ -73,7 +73,7 @@ public class CircularBuffer<T> {
      * @return 下一个T元素  或者 null 
      */  
     @SuppressWarnings("unchecked")  
-    public T getElement() {  
+    public byte[] getElement() {  
         // 有元素就拿出～  
         // 没元素就轮询，直到有元素可拿为止~ 若是put完毕、 数据取空，则返回null以告知调用者   
         while (null == this.buffer[this.indexForGet]) {  
@@ -99,7 +99,7 @@ public class CircularBuffer<T> {
         this.indexForGet++;  
         this.indexForGet %= this.capacity;  
   
-        return (T)temp; // 返回拿到的元素引用  
+        return (byte[])temp; // 返回拿到的元素引用  
     }  
   
     /****************************************************\ 
