@@ -14,6 +14,8 @@ import android.os.Bundle;
 import android.util.Log;
 
 public class BkvoiceActivity extends Activity {
+	final CircularBuffer<byte[]> cBuffer = new CircularBuffer<byte[]>(2048);  
+
 	private static final String AudioName = "/sdcard/recoder.pcm";  
     /** Called when the activity is first created. */
     @Override
@@ -60,6 +62,8 @@ public class BkvoiceActivity extends Activity {
 				try {
 					datagramSocket.receive(rcvPacket);
 					fos.write(rcvbuff, 0, rcvPacket.getLength());
+					cBuffer.putElement(rcvbuff);
+					//Log.i("元素数量", String.valueOf(cBuffer.capacity));
 					Log.i("收到数据", String.valueOf(rcvPacket.getLength())); 
 				} catch (IOException e) {
 					// TODO Auto-generated catch block
