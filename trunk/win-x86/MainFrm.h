@@ -34,7 +34,7 @@ struct tagAudioBuf
 class TMainForm : public TForm
 {
 __published:	// IDE-managed Components
-        TEdit *Edit1;
+        TEdit *edtToAddr;
         TLabel *Label1;
         TButton *Button1;
         TButton *Button2;

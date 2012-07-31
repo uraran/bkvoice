@@ -146,7 +146,7 @@ struct sockaddr_in To;
     nZero=RcvBufLen;       //128K
     result=setsockopt(m_Socket,SOL_SOCKET,SO_RCVBUF,(char*)&nZero,sizeof((char*)&nZero));
 */
-   nAddr=inet_addr("192.168.2.2");
+   nAddr=inet_addr(MainForm->edtToAddr->Text.c_str());
 
    To.sin_family=AF_INET;
 #define RemotePort 8302

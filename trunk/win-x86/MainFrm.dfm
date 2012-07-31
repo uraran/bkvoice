@@ -1,6 +1,6 @@
 object MainForm: TMainForm
-  Left = 473
-  Top = 157
+  Left = 504
+  Top = 201
   Width = 349
   Height = 497
   Caption = 'MainForm'
@@ -20,7 +20,7 @@ object MainForm: TMainForm
     Height = 16
     Caption = 'SendTo:'
   end
-  object Edit1: TEdit
+  object edtToAddr: TEdit
     Left = 128
     Top = 40
     Width = 121
