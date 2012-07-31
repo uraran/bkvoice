@@ -10,12 +10,21 @@ import java.net.InetAddress;
 import java.net.SocketException;
 
 import android.app.Activity;
+import android.media.AudioFormat;
+import android.media.AudioManager;
+import android.media.AudioTrack;
 import android.os.Bundle;
 import android.util.Log;
 
 public class BkvoiceActivity extends Activity {
-	final CircularBuffer<byte[]> cBuffer = new CircularBuffer<byte[]>(2048);  
+	final CircularBuffer<byte[]> cBuffer = new CircularBuffer<byte[]>(2048);  //环形缓冲区
 
+	static final int frequency = 8000;
+	static final int channelConfiguration = AudioFormat.CHANNEL_CONFIGURATION_MONO;
+	static final int audioEncoding = AudioFormat.ENCODING_PCM_16BIT;
+	AudioTrack audioTrack;
+	int miniPlayBufSize;
+	
 	private static final String AudioName = "/sdcard/recoder.pcm";  
     /** Called when the activity is first created. */
     @Override
@@ -24,6 +33,32 @@ public class BkvoiceActivity extends Activity {
         setContentView(R.layout.main);
         
         (new Thread(new UDPRecvThread())).start();
+        (new Thread(new AudioPlayThread())).start();
+    }
+    
+    public class AudioPlayThread implements Runnable
+    {
+		@Override
+		public void run() {
+			miniPlayBufSize = AudioTrack.getMinBufferSize(frequency,
+					channelConfiguration, audioEncoding);
+			
+			audioTrack = new AudioTrack(AudioManager.STREAM_MUSIC, frequency,
+					channelConfiguration, audioEncoding,
+					miniPlayBufSize, AudioTrack.MODE_STREAM);
+			
+			
+			//Integer offset = 0;
+			Integer readLength = 0;
+			
+			audioTrack.play(); 
+			
+			while(true)
+			{
+				audioTrack.write(cBuffer.getElement(), 0, 128);
+			}
+		}
+    	
     }
     
     public class UDPRecvThread implements Runnable
