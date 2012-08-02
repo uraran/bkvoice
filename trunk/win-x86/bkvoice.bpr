@@ -4,7 +4,8 @@
   <MACROS>
     <VERSION value="BCB.06.00"/>
     <PROJECT value="output\bkvoice.exe"/>
-    <OBJFILES value="output\bkvoice.obj output\MainFrm.obj output\record.obj"/>
+    <OBJFILES value="output\bkvoice.obj output\MainFrm.obj output\record.obj output\wb_vad.obj 
+      output\vadtest.obj"/>
     <RESFILES value="bkvoice.res"/>
     <IDLFILES value=""/>
     <IDLGENFILES value=""/>
@@ -20,7 +21,7 @@
       inetdbbde.bpi inetdbxpress.bpi inetdb.bpi nmfast.bpi webdsnap.bpi 
       bcbie.bpi websnap.bpi soaprtl.bpi dclocx.bpi dbexpress.bpi dbxcds.bpi 
       indy.bpi"/>
-    <PATHCPP value=".;"/>
+    <PATHCPP value=".;VAD"/>
     <PATHPAS value=".;"/>
     <PATHRC value=".;"/>
     <PATHASM value=".;"/>
@@ -30,13 +31,13 @@
     <USERDEFINES value="_DEBUG"/>
     <SYSDEFINES value="_RTLDLL;NO_STRICT;USEPACKAGES"/>
     <MAINSOURCE value="bkvoice.cpp"/>
-    <INCLUDEPATH value="&quot;C:\Program Files\Borland\CBuilder6\Projects&quot;;D:\bkvoice\win-x86;$(BCB)\include;$(BCB)\include\vcl"/>
-    <LIBPATH value="&quot;C:\Program Files\Borland\CBuilder6\Projects&quot;;&quot;D:\bkvoice\win-x86&quot;;$(BCB)\Projects\Lib;$(BCB)\lib\obj;$(BCB)\lib"/>
+    <INCLUDEPATH value="VAD;&quot;C:\Program Files\Borland\CBuilder6\Projects&quot;;D:\bkvoice\win-x86;$(BCB)\include;$(BCB)\include\vcl"/>
+    <LIBPATH value="VAD;&quot;C:\Program Files\Borland\CBuilder6\Projects&quot;;&quot;D:\bkvoice\win-x86&quot;;$(BCB)\Projects\Lib;$(BCB)\lib\obj;$(BCB)\lib"/>
     <WARNINGS value="-w-par"/>
     <OTHERFILES value=""/>
   </MACROS>
   <OPTIONS>
-    <IDLCFLAGS value="-I&quot;C:\Program Files\Borland\CBuilder6\Projects&quot; -ID:\bkvoice\win-x86 
+    <IDLCFLAGS value="-IVAD -I&quot;C:\Program Files\Borland\CBuilder6\Projects&quot; -ID:\bkvoice\win-x86 
       -I$(BCB)\include -I$(BCB)\include\vcl -src_suffix cpp -D_DEBUG -boa"/>
     <CFLAG1 value="-Od -H=$(BCB)\lib\vcl60.csm -Hc -Vx -Ve -X- -r- -a8 -b- -k -y -v -vi- -c 
       -tW -tWM"/>
@@ -57,6 +58,8 @@
       <FILE FILENAME="bkvoice.cpp" FORMNAME="" UNITNAME="bkvoice" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
       <FILE FILENAME="MainFrm.cpp" FORMNAME="MainForm" UNITNAME="MainFrm" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
       <FILE FILENAME="record.cpp" FORMNAME="" UNITNAME="record" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="VAD\wb_vad.c" FORMNAME="" UNITNAME="wb_vad" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="VAD\vadtest.c" FORMNAME="" UNITNAME="vadtest" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
   </FILELIST>
   <BUILDTOOLS>
   </BUILDTOOLS>

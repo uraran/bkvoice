@@ -1,4 +1,3 @@
-
 #ifndef wb_vad_h
 #define wb_vad_h
 
@@ -8,6 +7,10 @@
 #include "typedef.h"
 #include "wb_vad_c.h"
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 /******************************************************************************
 *                         DEFINITION OF DATA TYPES
 ******************************************************************************/
@@ -52,4 +55,7 @@ void wb_vad_exit(VadVars ** st);
 void wb_vad_pitch_tone_detection(VadVars * st, float p_gain);
 Word16 wb_vad(VadVars * st, float in_buf[]);
 
+#ifdef __cplusplus
+}
+#endif
 #endif

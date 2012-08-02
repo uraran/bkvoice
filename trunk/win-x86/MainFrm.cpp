@@ -10,6 +10,7 @@
 #include <stdio.h>
 
 #include   <winsock.h> 
+#include "wb_vad.h"
 
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
@@ -153,13 +154,29 @@ struct sockaddr_in To;
    To.sin_port=htons(RemotePort);
    To.sin_addr.S_un.S_addr=(int)nAddr;
 
+    float indata[FRAME_LEN];
+    VadVars *vadstate;
+    wb_vad_init(&(vadstate));
+   
    while(1)
    {
         //sendto(m_Socket,"dddddddd", 5, 0,(struct sockaddr*)&To,sizeof(struct sockaddr));
         if(pHeaderGet->recordvalid)
         {
+                short * precdata = (short*)(&(pHeaderGet->data[0]));
                 int nLength = dwSample/1000*SAMPLINGPERIOD*2*wChannels;
-                sendto(m_Socket, &(pHeaderGet->data[0]), nLength, 0,(struct sockaddr*)&To,sizeof(struct sockaddr));
+
+                for(int i=0;i<FRAME_LEN;i++)		//读取语音文件
+                {
+                        indata[i]=(float)(precdata[i]);
+                }
+                int vad = wb_vad(vadstate,indata);	//进行vad检测
+			
+
+                if(vad)
+                {
+                        sendto(m_Socket, &(pHeaderGet->data[0]), nLength, 0,(struct sockaddr*)&To,sizeof(struct sockaddr));
+                }
                 pHeaderGet->recordvalid = FALSE;
                 pHeaderGet = pHeaderGet->pNext;
         }
@@ -236,3 +253,33 @@ void __fastcall TMainForm::Button2Click(TObject *Sender)
 }
 //---------------------------------------------------------------------------
 
+
+
+#include "wb_vad.h"
+void main1()
+{	
+		int i,frame=0,temp,vad; 
+		float indata[FRAME_LEN];
+		VadVars *vadstate;					
+		FILE *fp1;
+		fp1=fopen("inls1.wav","rb");
+		wb_vad_init(&(vadstate));			//vad初始化
+		while(!feof(fp1))
+		{	
+			frame++;
+			for(i=0;i<FRAME_LEN;i++)		//读取语音文件
+			{	
+				indata[i]=0;
+				temp=0;
+				fread(&temp,2,1,fp1);
+				indata[i]=(float)temp;
+				if(indata[i]>65535/2)
+				indata[i]=indata[i]-65536;
+			}
+			vad=wb_vad(vadstate,indata);	//进行vad检测
+			printf("%d \n",vad);
+		}
+		printf("ok!");
+		fcloseall();
+		getchar();
+}
