@@ -1,7 +1,7 @@
 
 #include "stdio.h"
 #include "wb_vad.h"
-void main()
+void main1()
 {	
 		int i,frame=0,temp,vad; 
 		float indata[FRAME_LEN];
