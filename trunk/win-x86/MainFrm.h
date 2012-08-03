@@ -19,7 +19,7 @@ struct tagAudioBuf
 	pAUDIOBUF pNext;
 	int count;//有效数据数量
 	//short data[SIZE_AUDIO_FRAME/2];
-        char *data;
+        signed char *data;
 #if SPEEX_ENABLED	
 	char speexencodevalid;//speex编码后的数据是否还有效
 	char speexdecodevalid;//speex编码后的数据是否还有效

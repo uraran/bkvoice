@@ -9,9 +9,8 @@
 #include "record.h"
 #include <stdio.h>
 
-#include   <winsock.h> 
+#include   <winsock.h>
 #include "wb_vad.h"
-
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
 #pragma resource "*.dfm"
@@ -163,15 +162,15 @@ struct sockaddr_in To;
         //sendto(m_Socket,"dddddddd", 5, 0,(struct sockaddr*)&To,sizeof(struct sockaddr));
         if(pHeaderGet->recordvalid)
         {
-                short * precdata = (short*)(&(pHeaderGet->data[0]));
+                signed short * precdata = (signed short*)(&(pHeaderGet->data[0]));
                 int nLength = dwSample/1000*SAMPLINGPERIOD*2*wChannels;
 
                 for(int i=0;i<FRAME_LEN;i++)		//读取语音文件
                 {
-                        indata[i]=(float)(precdata[i]);
+                        indata[i]= (float)(precdata[i]);
                 }
                 int vad = wb_vad(vadstate,indata);	//进行vad检测
-			
+
 
                 if(vad)
                 {
