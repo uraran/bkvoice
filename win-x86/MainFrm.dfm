@@ -26,7 +26,7 @@ object MainForm: TMainForm
     Width = 121
     Height = 24
     TabOrder = 0
-    Text = '192.168.2.3'
+    Text = '192.168.2.2'
   end
   object Button1: TButton
     Left = 80

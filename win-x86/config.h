@@ -25,7 +25,7 @@
 #define BUFCOUNT          64
 #endif
 
-#define  SAMPLINGPERIOD   5 //采样周期,单位ms
+#define  SAMPLINGPERIOD   16 //采样周期,单位ms
 
 extern DWORD dwSample;
 extern WORD  wChannels;
