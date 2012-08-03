@@ -133,7 +133,7 @@ public class BkvoiceActivity extends Activity {
 					e1.printStackTrace();
 				}  
                 
-				if(buffer.size() > 5)
+				if(buffer.size() > 0)
 				{
 					//Log.i("play", String.valueOf(buffer.size()));
 					//int length = buffer.get(0).length;
@@ -176,7 +176,7 @@ public class BkvoiceActivity extends Activity {
 			Integer port = 8302;
 			InetAddress remoteAddress;
 			byte sendbuff[] = new byte[61];
-			byte rcvbuff[] = new byte[160];
+			byte rcvbuff[] = new byte[512];
 			
 			FileOutputStream fos = null;
 			
@@ -208,7 +208,7 @@ public class BkvoiceActivity extends Activity {
 					datagramSocket.receive(rcvPacket);
 					if(rcvPacket.getLength() > 0)
 					{
-						byte[] data = new byte[160];
+						byte[] data = new byte[512];
 						System.arraycopy(rcvbuff, 0, data, 0, rcvPacket.getLength());
 						buffer.add(data);
 						
