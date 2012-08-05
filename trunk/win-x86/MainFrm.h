@@ -38,6 +38,7 @@ __published:	// IDE-managed Components
         TLabel *Label1;
         TButton *Button1;
         TButton *Button2;
+        TButton *Button3;
         void __fastcall Button1Click(TObject *Sender);
         void __fastcall Button2Click(TObject *Sender);
 private:	// User declarations
@@ -48,6 +49,9 @@ private:	// User declarations
 
         static DWORD WINAPI voice_record_thread_runner(LPVOID lpParam);
         static DWORD WINAPI voice_udpsend_thread_runner(LPVOID lpParam);
+
+        static DWORD WINAPI voice_udprecv_thread_runner(LPVOID lpParam);
+
         void init_audio_buffer();//≥ı ºªØ“Ù∆µª∫≥Â«¯
 public:		// User declarations
         __fastcall TMainForm(TComponent* Owner);

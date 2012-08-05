@@ -26,6 +26,8 @@ __fastcall TMainForm::TMainForm(TComponent* Owner)
 }
 
 #define RECORD_FILE_ENABLED   1
+#define MAX_SEM_COUNT 10
+HANDLE ghSemaphore;//信号量
 //声音采集线程
 DWORD WINAPI TMainForm::voice_record_thread_runner(LPVOID lpParam)
 {
@@ -33,10 +35,24 @@ DWORD WINAPI TMainForm::voice_record_thread_runner(LPVOID lpParam)
 	MSG   msg;
 	LPWAVEHDR lpHdr;
 
-
-        int i,frame=0,temp,vad; 
+        int i,frame=0,temp,vad;
         float indata[2056];
 		//VadVars *vadstate;
+
+    // Create a semaphore with initial and max counts of MAX_SEM_COUNT
+
+    ghSemaphore = CreateSemaphore( 
+        NULL,           // default security attributes - lpSemaphoreAttributes是信号量的安全属性
+        MAX_SEM_COUNT,  // initial count - lInitialCount是初始化的信号量
+        MAX_SEM_COUNT,  // maximum count - lMaximumCount是允许信号量增加到最大值
+        NULL);          // unnamed semaphore - lpName是信号量的名称
+
+    if (ghSemaphore == NULL) 
+    {
+        printf("CreateSemaphore error: %d/n", GetLastError());
+        return -1;
+    }
+                    
 #if RECORD_FILE_ENABLED
         TMemoryStream * stream = new TMemoryStream();
 #endif                
@@ -79,6 +95,14 @@ DWORD WINAPI TMainForm::voice_record_thread_runner(LPVOID lpParam)
                                         memcpy(&(pHeaderPut->data[0]), (short*)(lpHdr->lpData), dwSample/1000*SAMPLINGPERIOD*2*wChannels);
                                         pHeaderPut->recordvalid = TRUE;
                                         pHeaderPut = pHeaderPut->pNext;
+
+                                        if (!ReleaseSemaphore( 
+                                            ghSemaphore,  // handle to semaphore - hSemaphore是要增加的信号量句柄
+                                            1,            // increase count by one - lReleaseCount是增加的计数
+                                            NULL) )       // not interested in previous count - lpPreviousCount是增加前的数值返回
+                                        {
+                                            printf("ReleaseSemaphore error: %d/n", GetLastError());
+                                        }
 					
 				}
 
@@ -99,6 +123,89 @@ DWORD WINAPI TMainForm::voice_record_thread_runner(LPVOID lpParam)
 
 //声音发送线程
 DWORD WINAPI TMainForm::voice_udpsend_thread_runner(LPVOID lpParam)
+{
+int  result;
+SOCKET      m_Socket;
+unsigned long nAddr;
+struct sockaddr_in To;
+   WSADATA     wsaData;
+   WORD wVersionRequested;
+    wVersionRequested = MAKEWORD(1,1);
+
+    if((result = WSAStartup(wVersionRequested,&wsaData))!=0)
+    {
+   //      Application->MessageBoxA("Socket Initial Error","Error",MB_OK);
+         WSACleanup();
+         MessageBox(NULL,"Wrong     WinSock     Version","Error",MB_OK);  
+         return -1;
+    }
+
+        m_Socket = socket(AF_INET,SOCK_DGRAM,0);
+    if(m_Socket == INVALID_SOCKET)
+    {
+  //      Application->MessageBoxA("Socket Open failed","Error",MB_OK);
+        WSACleanup();
+        MessageBox(NULL,"Wrong     WinSock     Version","Error",MB_OK);
+
+        return -1;
+    }
+
+#define LocalPort 8302
+    SOCKADDR_IN sockaddr;
+    memset(&sockaddr,0,sizeof(sockaddr));
+    /* 设置端口号     */
+    sockaddr.sin_port=htons(LocalPort);
+    sockaddr.sin_family=AF_INET;
+    sockaddr.sin_addr.S_un.S_addr=htonl(INADDR_ANY);
+
+/*
+    int  nZero=0;
+    int SndBufLen=1024*64;   //128K
+    int RcvBufLen=1024*64;   //128K
+    //int  iLen;
+    //iLen=sizeof(nZero);           //  SO_SNDBUF
+    nZero=SndBufLen;       //128K
+    result=setsockopt(m_Socket,SOL_SOCKET,SO_SNDBUF,(char*)&nZero,sizeof((char*)&nZero));
+    nZero=RcvBufLen;       //128K
+    result=setsockopt(m_Socket,SOL_SOCKET,SO_RCVBUF,(char*)&nZero,sizeof((char*)&nZero));
+*/
+   nAddr=inet_addr(MainForm->edtToAddr->Text.c_str());
+
+   To.sin_family=AF_INET;
+#define RemotePort 8302
+   To.sin_port=htons(RemotePort);
+   To.sin_addr.S_un.S_addr=(int)nAddr;
+   
+   while(1)
+   {
+
+        // Try to enter the semaphore gate.
+        DWORD dwWaitResult = WaitForSingleObject( 
+            ghSemaphore,   // handle to semaphore
+            0L);           // zero-second time-out interval
+
+        if(dwWaitResult == WAIT_OBJECT_0)
+        {
+            //sendto(m_Socket,"dddddddd", 5, 0,(struct sockaddr*)&To,sizeof(struct sockaddr));
+            if(pHeaderGet->recordvalid)
+            {
+                    signed short * precdata = (signed short*)(&(pHeaderGet->data[0]));
+                    int nLength = dwSample/1000*SAMPLINGPERIOD*2*wChannels;
+
+
+                    //if(vad)
+                    {
+                            sendto(m_Socket, &(pHeaderGet->data[0]), nLength, 0,(struct sockaddr*)&To,sizeof(struct sockaddr));
+                    }
+                    pHeaderGet->recordvalid = FALSE;
+                    pHeaderGet = pHeaderGet->pNext;
+            }
+        }
+   }
+}
+
+//声音发送线程
+DWORD WINAPI TMainForm::voice_udprecv_thread_runner(LPVOID lpParam)
 {
 int  result;
 SOCKET      m_Socket;
