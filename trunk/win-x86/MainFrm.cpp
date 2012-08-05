@@ -10,7 +10,6 @@
 #include <stdio.h>
 
 #include   <winsock.h>
-#include "wb_vad.h"
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
 #pragma resource "*.dfm"
@@ -152,10 +151,6 @@ struct sockaddr_in To;
 #define RemotePort 8302
    To.sin_port=htons(RemotePort);
    To.sin_addr.S_un.S_addr=(int)nAddr;
-
-    float indata[FRAME_LEN];
-    VadVars *vadstate;
-    wb_vad_init(&(vadstate));
    
    while(1)
    {
@@ -165,14 +160,8 @@ struct sockaddr_in To;
                 signed short * precdata = (signed short*)(&(pHeaderGet->data[0]));
                 int nLength = dwSample/1000*SAMPLINGPERIOD*2*wChannels;
 
-                for(int i=0;i<FRAME_LEN;i++)		//读取语音文件
-                {
-                        indata[i]= (float)(precdata[i]);
-                }
-                int vad = wb_vad(vadstate,indata);	//进行vad检测
 
-
-                if(vad)
+                //if(vad)
                 {
                         sendto(m_Socket, &(pHeaderGet->data[0]), nLength, 0,(struct sockaddr*)&To,sizeof(struct sockaddr));
                 }
