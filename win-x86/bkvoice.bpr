@@ -4,7 +4,7 @@
   <MACROS>
     <VERSION value="BCB.06.00"/>
     <PROJECT value="output\bkvoice.exe"/>
-    <OBJFILES value="output\bkvoice.obj output\MainFrm.obj output\record.obj"/>
+    <OBJFILES value="output\bkvoice.obj output\MainFrm.obj output\record.obj output\play.obj"/>
     <RESFILES value="bkvoice.res"/>
     <IDLFILES value=""/>
     <IDLGENFILES value=""/>
@@ -57,6 +57,7 @@
       <FILE FILENAME="bkvoice.cpp" FORMNAME="" UNITNAME="bkvoice" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
       <FILE FILENAME="MainFrm.cpp" FORMNAME="MainForm" UNITNAME="MainFrm" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
       <FILE FILENAME="record.cpp" FORMNAME="" UNITNAME="record" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="play.cpp" FORMNAME="" UNITNAME="play" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
   </FILELIST>
   <BUILDTOOLS>
   </BUILDTOOLS>

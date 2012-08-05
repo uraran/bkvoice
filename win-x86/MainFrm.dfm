@@ -53,5 +53,6 @@ object MainForm: TMainForm
     Height = 25
     Caption = #25509#25910#35821#38899
     TabOrder = 3
+    OnClick = Button3Click
   end
 end
