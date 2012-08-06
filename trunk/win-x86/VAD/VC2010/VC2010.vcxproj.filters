@@ -24,5 +24,8 @@
     <ClCompile Include="..\wb_vad.c">
       <Filter>Resource Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\play.c">
+      <Filter>Resource Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
