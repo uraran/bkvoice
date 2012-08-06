@@ -6,13 +6,18 @@
 #include <windows.h>
 #include "config.h"
 #include "record.h"
+#include "play.h"
 
 #pragma comment(lib,"ws2_32.lib")
 #pragma comment(lib,"winmm.lib")
 
-HANDLE hRecord, hPlay, hUDPSend;
-HANDLE eventRecord, eventPlay, eventUDPSend;
-DWORD threadRecord, threadPlay, threadUDPSend;
+#define MAX_SEM_COUNT 10
+
+HANDLE ghSemaphore;//信号量
+
+HANDLE hRecord, hPlay, hUDPSend, hUDPRecv;
+HANDLE eventRecord, eventPlay, eventUDPSend, eventUDPRecv;
+DWORD threadRecord, threadPlay, threadUDPSend, threadUDPRecv;
 
 typedef struct tagAudioBuf AUDIOBUF, *pAUDIOBUF;
 
@@ -21,6 +26,7 @@ struct tagAudioBuf
 {
 	//char valid;
 	char recordvalid;//录音有效
+	char recvvalid;//
 	pAUDIOBUF pNext;
 	int count;//有效数据数量
 	//short data[SIZE_AUDIO_FRAME/2];
@@ -233,6 +239,116 @@ void init_audio_buffer()
 }
 #endif
 
+
+//声音发送线程
+DWORD WINAPI voice_udprecv_thread_runner(LPVOID lpParam)
+{
+    int  result;
+    SOCKET      m_Socket;
+    unsigned long nAddr;
+    struct sockaddr_in serveraddr;
+    WSADATA     wsaData;
+    WORD wVersionRequested;
+    wVersionRequested = MAKEWORD(1,1);
+
+    if((result = WSAStartup(wVersionRequested,&wsaData))!=0)
+    {
+   //      Application->MessageBoxA("Socket Initial Error","Error",MB_OK);
+         WSACleanup();
+         MessageBox(NULL,"Wrong     WinSock     Version","Error", MB_OK);  
+         return -1;
+    }
+
+    m_Socket = socket(AF_INET,SOCK_DGRAM,0);
+    if(m_Socket == INVALID_SOCKET)
+    {
+  //      Application->MessageBoxA("Socket Open failed","Error",MB_OK);
+        WSACleanup();
+        MessageBox(NULL,"Wrong     WinSock     Version","Error",MB_OK);
+
+        return -1;
+    }
+
+    serveraddr.sin_family=AF_INET;
+    #define RemotePort 8302
+    serveraddr.sin_port=htons(RemotePort);
+    serveraddr.sin_addr.S_un.S_addr = htonl(INADDR_ANY);
+
+    if(bind(m_Socket,(struct sockaddr*)&serveraddr,sizeof(serveraddr))<0)
+    {
+        printf("bind() ???????.\r\n");
+        //close(sock);
+    }
+
+   while(1)
+   {
+        //sendto(m_Socket,"dddddddd", 5, 0,(struct sockaddr*)&To,sizeof(struct sockaddr));
+        //if(pHeaderGet->recvvalid == FALSE)
+        {
+                signed short * recvdata = (signed short*)(&(pHeaderGet->data[0]));
+                int nLength = dwSample/1000*SAMPLINGPERIOD*2*wChannels;
+                int dwSenderSize =sizeof(serveraddr);
+
+                //if(vad)
+                {
+                        int recvlength = recvfrom(m_Socket, &(pHeaderGet->data[0]), nLength, 0, (struct sockaddr*)&serveraddr, &dwSenderSize);
+                        printf("%d\n", recvlength);
+                }
+                pHeaderGet->recvvalid = TRUE;
+                pHeaderGet = pHeaderGet->pNext;
+
+                if (!ReleaseSemaphore( 
+                    ghSemaphore,  // handle to semaphore - hSemaphore是要增加的信号量句柄
+                    1,            // increase count by one - lReleaseCount是增加的计数
+                    NULL) )       // not interested in previous count - lpPreviousCount是增加前的数值返回
+                {
+                    printf("ReleaseSemaphore error: %d/n", GetLastError());
+                }
+        }
+   }
+}
+
+//语音播放线程
+DWORD WINAPI voice_play_thread_runner(LPVOID   lpParam)   
+{
+	HANDLE eventPlay = (HANDLE)(lpParam);
+
+	if( 0 != startPlaying(GetCurrentThreadId() )  )
+	{
+		printf("Start Playing Failed!\n");
+		return -1;
+	}
+
+	while(1)   
+	{
+
+        // Try to enter the semaphore gate.
+        DWORD dwWaitResult = WaitForSingleObject(
+            ghSemaphore,   // handle to semaphore
+            5L);           // zero-second time-out interval
+
+        if(dwWaitResult == WAIT_OBJECT_0)
+        {
+
+		//if(pHeaderGet->recvvalid == TRUE)
+		{
+
+			if( 0 != playWavData((char*)&(pHeaderGet->data[0]), dwSample/1000*SAMPLINGPERIOD*2*wChannels))
+
+			{
+				printf("Playing Wave Data Failed!\n");
+			}
+			pHeaderGet->recvvalid = FALSE;
+			pHeaderGet = pHeaderGet->pNext;			
+		}
+        }
+
+	}   
+	waveOutReset(g_playHandler);
+	waveOutClose(g_playHandler);
+	return   0;   
+}
+
 void main()
 {
     eventRecord = CreateEvent(NULL,   TRUE,   FALSE,   NULL); 	
@@ -241,8 +357,16 @@ void main()
     dwSample = 16000;
     wChannels = 1;
 
+    // Create a semaphore with initial and max counts of MAX_SEM_COUNT
+    ghSemaphore = CreateSemaphore( 
+        NULL,           // default security attributes - lpSemaphoreAttributes是信号量的安全属性
+        MAX_SEM_COUNT,  // initial count - lInitialCount是初始化的信号量
+        MAX_SEM_COUNT,  // maximum count - lMaximumCount是允许信号量增加到最大值
+        NULL);          // unnamed semaphore - lpName是信号量的名称
+
     init_audio_buffer();
 
+#if 0
     hRecord = CreateThread((LPSECURITY_ATTRIBUTES)NULL, 0,
           (LPTHREAD_START_ROUTINE)voice_record_thread_runner,
           (LPVOID)eventRecord,0, &threadRecord);
@@ -250,7 +374,18 @@ void main()
     hUDPSend = CreateThread((LPSECURITY_ATTRIBUTES)NULL, 0,
           (LPTHREAD_START_ROUTINE)voice_udpsend_thread_runner,
           (LPVOID)eventUDPSend,0, &threadUDPSend); 
+#endif
 
+//    eventRecord = CreateEvent(NULL,   TRUE,   FALSE,   NULL);
+//    eventPlay   = CreateEvent(NULL,   TRUE,   FALSE,   NULL);
+
+    hPlay = CreateThread((LPSECURITY_ATTRIBUTES)NULL, 0,
+          (LPTHREAD_START_ROUTINE)voice_play_thread_runner,
+          (LPVOID)eventPlay, 0, &threadPlay);
+
+    hUDPRecv = CreateThread((LPSECURITY_ATTRIBUTES)NULL, 0,
+          (LPTHREAD_START_ROUTINE)voice_udprecv_thread_runner,
+          (LPVOID)eventUDPRecv,0, &threadUDPRecv);
 	while(1)
 	{
 	}
