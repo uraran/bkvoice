@@ -164,7 +164,7 @@ DWORD WINAPI voice_udpsend_thread_runner(LPVOID lpParam)
     nZero=RcvBufLen;       //128K
     result=setsockopt(m_Socket,SOL_SOCKET,SO_RCVBUF,(char*)&nZero,sizeof((char*)&nZero));
 */
-   nAddr=inet_addr("192.168.2.2");
+   nAddr=inet_addr("127.0.0.1");
 
    To.sin_family=AF_INET;
 #define RemotePort 8302
@@ -190,7 +190,7 @@ DWORD WINAPI voice_udpsend_thread_runner(LPVOID lpParam)
                 vad = wb_vad(vadstate,indata);	//??vad??
 
 
-                //if(vad)
+                if(vad)
                 {
                         sendto(m_Socket, &(pHeaderGet->data[0]), nLength, 0,(struct sockaddr*)&To,sizeof(struct sockaddr));
                 }
