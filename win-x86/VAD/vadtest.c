@@ -10,6 +10,7 @@
 
 #pragma comment(lib,"ws2_32.lib")
 #pragma comment(lib,"winmm.lib")
+#pragma comment(lib,"user32.lib")
 
 #define MAX_SEM_COUNT 10
 
@@ -283,19 +284,19 @@ DWORD WINAPI voice_udprecv_thread_runner(LPVOID lpParam)
    while(1)
    {
         //sendto(m_Socket,"dddddddd", 5, 0,(struct sockaddr*)&To,sizeof(struct sockaddr));
-        //if(pHeaderGet->recvvalid == FALSE)
+        if(pHeaderPut->recvvalid == FALSE)
         {
-                signed short * recvdata = (signed short*)(&(pHeaderGet->data[0]));
+                signed short * recvdata = (signed short*)(&(pHeaderPut->data[0]));
                 int nLength = dwSample/1000*SAMPLINGPERIOD*2*wChannels;
                 int dwSenderSize =sizeof(serveraddr);
 
                 //if(vad)
                 {
-                        int recvlength = recvfrom(m_Socket, &(pHeaderGet->data[0]), nLength, 0, (struct sockaddr*)&serveraddr, &dwSenderSize);
-                        printf("%d\n", recvlength);
+                        int recvlength = recvfrom(m_Socket, &(pHeaderPut->data[0]), nLength, 0, (struct sockaddr*)&serveraddr, &dwSenderSize);
+                        //printf("%d\n", recvlength);
                 }
-                pHeaderGet->recvvalid = TRUE;
-                pHeaderGet = pHeaderGet->pNext;
+                pHeaderPut->recvvalid = TRUE;
+                pHeaderPut = pHeaderPut->pNext;
 
                 if (!ReleaseSemaphore( 
                     ghSemaphore,  // handle to semaphore - hSemaphore是要增加的信号量句柄
@@ -307,6 +308,8 @@ DWORD WINAPI voice_udprecv_thread_runner(LPVOID lpParam)
         }
    }
 }
+
+static int nZeroPackageCount = 0;//连续VAD=0个数
 
 //语音播放线程
 DWORD WINAPI voice_play_thread_runner(LPVOID   lpParam)   
@@ -338,7 +341,7 @@ DWORD WINAPI voice_play_thread_runner(LPVOID   lpParam)
         if(dwWaitResult == WAIT_OBJECT_0)
         {
 
-		//if(pHeaderGet->recvvalid == TRUE)
+		if(pHeaderGet->recvvalid == TRUE)
 		{
 
 			signed short * precdata = (signed short*)(&(pHeaderGet->data[0]));
@@ -352,8 +355,21 @@ DWORD WINAPI voice_play_thread_runner(LPVOID   lpParam)
 
 			if(vad == 1)
 			{
-				if( 0 != playWavData((char*)&(pHeaderGet->data[0]), dwSample/1000*SAMPLINGPERIOD*2*wChannels))
+				nZeroPackageCount = 0;
+			}
+			else
+			{
+				nZeroPackageCount++;
+			}
 
+			if((vad==0) && (nZeroPackageCount > 20))
+			{
+				printf("z=%d\n", nZeroPackageCount);
+				//当前面有5个静音包，则略过
+			}
+			else
+			{
+				if( 0 != playWavData((char*)&(pHeaderGet->data[0]), dwSample/1000*SAMPLINGPERIOD*2*wChannels))
 				{
 					printf("Playing Wave Data Failed!\n");
 				}
