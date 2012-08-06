@@ -311,6 +311,11 @@ DWORD WINAPI voice_udprecv_thread_runner(LPVOID lpParam)
 //ÓïÒô²¥·ÅÏß³Ì
 DWORD WINAPI voice_play_thread_runner(LPVOID   lpParam)   
 {
+	VadVars *vadstate;
+    float indata[FRAME_LEN];
+	int vad;
+	int i;
+
 	HANDLE eventPlay = (HANDLE)(lpParam);
 
 	if( 0 != startPlaying(GetCurrentThreadId() )  )
@@ -318,6 +323,8 @@ DWORD WINAPI voice_play_thread_runner(LPVOID   lpParam)
 		printf("Start Playing Failed!\n");
 		return -1;
 	}
+
+    wb_vad_init(&(vadstate));
 
 	while(1)   
 	{
@@ -327,16 +334,29 @@ DWORD WINAPI voice_play_thread_runner(LPVOID   lpParam)
             ghSemaphore,   // handle to semaphore
             5L);           // zero-second time-out interval
 
+
         if(dwWaitResult == WAIT_OBJECT_0)
         {
 
 		//if(pHeaderGet->recvvalid == TRUE)
 		{
 
-			if( 0 != playWavData((char*)&(pHeaderGet->data[0]), dwSample/1000*SAMPLINGPERIOD*2*wChannels))
+			signed short * precdata = (signed short*)(&(pHeaderGet->data[0]));
+			int nLength = dwSample/1000*SAMPLINGPERIOD*2*wChannels;
 
+			for(i=0;i<FRAME_LEN;i++)		//??????
 			{
-				printf("Playing Wave Data Failed!\n");
+					indata[i]= (float)(precdata[i]);
+			}
+			vad = wb_vad(vadstate,indata);	//??vad??
+
+			if(vad == 1)
+			{
+				if( 0 != playWavData((char*)&(pHeaderGet->data[0]), dwSample/1000*SAMPLINGPERIOD*2*wChannels))
+
+				{
+					printf("Playing Wave Data Failed!\n");
+				}
 			}
 			pHeaderGet->recvvalid = FALSE;
 			pHeaderGet = pHeaderGet->pNext;			
