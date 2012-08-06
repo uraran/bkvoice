@@ -131,6 +131,7 @@ DWORD WINAPI voice_udpsend_thread_runner(LPVOID lpParam)
 	VadVars *vadstate;
     float indata[FRAME_LEN];
 	int vad;
+	int nZeroPackageCount;
 
     wVersionRequested = MAKEWORD(1,1);
 
@@ -171,14 +172,12 @@ DWORD WINAPI voice_udpsend_thread_runner(LPVOID lpParam)
     nZero=RcvBufLen;       //128K
     result=setsockopt(m_Socket,SOL_SOCKET,SO_RCVBUF,(char*)&nZero,sizeof((char*)&nZero));
 */
-   nAddr=inet_addr("127.0.0.1");
+   nAddr=inet_addr("192.168.2.2");
 
    To.sin_family=AF_INET;
 #define RemotePort 8302
    To.sin_port=htons(RemotePort);
    To.sin_addr.S_un.S_addr=(int)nAddr;
-
-
     
     wb_vad_init(&(vadstate));
    
@@ -196,11 +195,24 @@ DWORD WINAPI voice_udpsend_thread_runner(LPVOID lpParam)
                 }
                 vad = wb_vad(vadstate,indata);	//??vad??
 
+			if(vad == 1)
+			{
+				nZeroPackageCount = 0;
+			}
+			else
+			{
+				nZeroPackageCount++;
+			}
 
-                if(vad)
-                {
-                        sendto(m_Socket, &(pHeaderGet->data[0]), nLength, 0,(struct sockaddr*)&To,sizeof(struct sockaddr));
-                }
+			if((vad==0) && (nZeroPackageCount > 5))
+			{
+				printf("z=%d\n", nZeroPackageCount);
+				//当前面有5个静音包，则略过
+			}
+			else
+			{
+				sendto(m_Socket, &(pHeaderGet->data[0]), nLength, 0,(struct sockaddr*)&To,sizeof(struct sockaddr));
+            }
                 pHeaderGet->recordvalid = FALSE;
                 pHeaderGet = pHeaderGet->pNext;
         }
@@ -402,7 +414,7 @@ void main()
 
     init_audio_buffer();
 
-#if 0
+#if 1
     hRecord = CreateThread((LPSECURITY_ATTRIBUTES)NULL, 0,
           (LPTHREAD_START_ROUTINE)voice_record_thread_runner,
           (LPVOID)eventRecord,0, &threadRecord);
@@ -410,8 +422,7 @@ void main()
     hUDPSend = CreateThread((LPSECURITY_ATTRIBUTES)NULL, 0,
           (LPTHREAD_START_ROUTINE)voice_udpsend_thread_runner,
           (LPVOID)eventUDPSend,0, &threadUDPSend); 
-#endif
-
+#else
 //    eventRecord = CreateEvent(NULL,   TRUE,   FALSE,   NULL);
 //    eventPlay   = CreateEvent(NULL,   TRUE,   FALSE,   NULL);
 
@@ -422,6 +433,7 @@ void main()
     hUDPRecv = CreateThread((LPSECURITY_ATTRIBUTES)NULL, 0,
           (LPTHREAD_START_ROUTINE)voice_udprecv_thread_runner,
           (LPVOID)eventUDPRecv,0, &threadUDPRecv);
+#endif
 	while(1)
 	{
 	}
