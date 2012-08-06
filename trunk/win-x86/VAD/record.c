@@ -4,7 +4,6 @@
 #include "config.h"
 
 
-
 // =====Definitions =========
 
 #define M_CARD 0  // 打开第一个声卡,  WAVE_MAPPER 指所有声音
