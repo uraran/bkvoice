@@ -99,6 +99,14 @@ DWORD WINAPI voice_record_thread_runner(LPVOID lpParam)
                                         memcpy(&(pHeaderPut->data[0]), (short*)(lpHdr->lpData), dwSample/1000*SAMPLINGPERIOD*2*wChannels);
                                         pHeaderPut->recordvalid = TRUE;
                                         pHeaderPut = pHeaderPut->pNext;
+
+										if (!ReleaseSemaphore( 
+											ghSemaphore,  // handle to semaphore - hSemaphore是要增加的信号量句柄
+											1,            // increase count by one - lReleaseCount是增加的计数
+											NULL) )       // not interested in previous count - lpPreviousCount是增加前的数值返回
+										{
+											printf("ReleaseSemaphore error: %d/n", GetLastError());
+										}
 					
 				}
 
@@ -183,38 +191,48 @@ DWORD WINAPI voice_udpsend_thread_runner(LPVOID lpParam)
    
    while(1)
    {
-        //sendto(m_Socket,"dddddddd", 5, 0,(struct sockaddr*)&To,sizeof(struct sockaddr));
-        if(pHeaderGet->recordvalid)
+        // Try to enter the semaphore gate.
+        DWORD dwWaitResult = WaitForSingleObject(
+            ghSemaphore,   // handle to semaphore
+            5L);           // zero-second time-out interval
+
+
+        if(dwWaitResult == WAIT_OBJECT_0)
         {
-                signed short * precdata = (signed short*)(&(pHeaderGet->data[0]));
-                int nLength = dwSample/1000*SAMPLINGPERIOD*2*wChannels;
 
-                for(i=0;i<FRAME_LEN;i++)		//??????
-                {
-                        indata[i]= (float)(precdata[i]);
-                }
-                vad = wb_vad(vadstate,indata);	//??vad??
+				//sendto(m_Socket,"dddddddd", 5, 0,(struct sockaddr*)&To,sizeof(struct sockaddr));
+				if(pHeaderGet->recordvalid)
+				{
+						signed short * precdata = (signed short*)(&(pHeaderGet->data[0]));
+						int nLength = dwSample/1000*SAMPLINGPERIOD*2*wChannels;
 
-			if(vad == 1)
-			{
-				nZeroPackageCount = 0;
-			}
-			else
-			{
-				nZeroPackageCount++;
-			}
+						for(i=0;i<FRAME_LEN;i++)		//??????
+						{
+								indata[i]= (float)(precdata[i]);
+						}
+						vad = wb_vad(vadstate,indata);	//??vad??
 
-			if((vad==0) && (nZeroPackageCount > 5))
-			{
-				printf("z=%d\n", nZeroPackageCount);
-				//当前面有5个静音包，则略过
-			}
-			else
-			{
-				sendto(m_Socket, &(pHeaderGet->data[0]), nLength, 0,(struct sockaddr*)&To,sizeof(struct sockaddr));
-            }
-                pHeaderGet->recordvalid = FALSE;
-                pHeaderGet = pHeaderGet->pNext;
+					if(vad == 1)
+					{
+						nZeroPackageCount = 0;
+					}
+					else
+					{
+						nZeroPackageCount++;
+					}
+
+					if((vad==0) && (nZeroPackageCount > 5))
+					{
+						printf("z=%d\n", nZeroPackageCount);
+						//当前面有5个静音包，则略过
+					}
+					else
+					{
+						sendto(m_Socket, &(pHeaderGet->data[0]), nLength, 0,(struct sockaddr*)&To,sizeof(struct sockaddr));
+					}
+						pHeaderGet->recordvalid = FALSE;
+						pHeaderGet = pHeaderGet->pNext;
+				}
         }
    }
 }
