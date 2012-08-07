@@ -31,7 +31,10 @@ struct tagAudioBuf
 	pAUDIOBUF pNext;
 	int count;//有效数据数量
 	//short data[SIZE_AUDIO_FRAME/2];
-        signed char *data;
+	//char *data;
+    char data[512];
+	int frameNO;//帧序号
+	DWORD time;//时间
 #if SPEEX_ENABLED	
 	char speexencodevalid;//speex编码后的数据是否还有效
 	char speexdecodevalid;//speex编码后的数据是否还有效
@@ -46,6 +49,8 @@ pAUDIOBUF pHeaderGet;//消费者链表头
 
 #if 1
 #define RECORD_FILE_ENABLED   0
+
+static int frameNO = 0;
 //??????
 DWORD WINAPI voice_record_thread_runner(LPVOID lpParam)
 {
@@ -53,14 +58,13 @@ DWORD WINAPI voice_record_thread_runner(LPVOID lpParam)
 	MSG   msg;
 	LPWAVEHDR lpHdr;
 
-
-        int i,frame=0,temp,vad; 
-        float indata[2056];
-		//VadVars *vadstate;
+	int frame=0; 
+	//float indata[2056];
+	//VadVars *vadstate;
 #if RECORD_FILE_ENABLED
         TMemoryStream * stream = new TMemoryStream();
 #endif                
-		//wb_vad_init(&(vadstate));			//vad???
+	//wb_vad_init(&(vadstate));			//vad???
 	if(openMicAndStartRecording(GetCurrentThreadId()) < 0) return -1;
 
 	while(GetMessage(&msg, 0, 0, 0))
@@ -71,7 +75,7 @@ DWORD WINAPI voice_record_thread_runner(LPVOID lpParam)
 		}
 
 		switch(msg.message)
-                {
+		{
 			case MM_WIM_DATA:				
 				lpHdr = (LPWAVEHDR)msg.lParam;
 				waveInUnprepareHeader(getRecordHandler(), lpHdr, sizeof(WAVEHDR));
@@ -96,17 +100,19 @@ DWORD WINAPI voice_record_thread_runner(LPVOID lpParam)
 #if RECORD_FILE_ENABLED
                                         stream->Write((short*)(lpHdr->lpData), dwSample/1000*SAMPLINGPERIOD*2*wChannels);
 #endif
-                                        memcpy(&(pHeaderPut->data[0]), (short*)(lpHdr->lpData), dwSample/1000*SAMPLINGPERIOD*2*wChannels);
-                                        pHeaderPut->recordvalid = TRUE;
-                                        pHeaderPut = pHeaderPut->pNext;
+                        memcpy(&(pHeaderPut->data[0]), (short*)(lpHdr->lpData), dwSample/1000*SAMPLINGPERIOD*2*wChannels);
+						pHeaderPut->frameNO = frameNO++;
+						pHeaderPut->time = timeGetTime();
+                        pHeaderPut->recordvalid = TRUE;
+                        pHeaderPut = pHeaderPut->pNext;
 
-										if (!ReleaseSemaphore( 
-											ghSemaphore,  // handle to semaphore - hSemaphore是要增加的信号量句柄
-											1,            // increase count by one - lReleaseCount是增加的计数
-											NULL) )       // not interested in previous count - lpPreviousCount是增加前的数值返回
-										{
-											printf("ReleaseSemaphore error: %d/n", GetLastError());
-										}
+						if (!ReleaseSemaphore( 
+							ghSemaphore,  // handle to semaphore - hSemaphore是要增加的信号量句柄
+							1,            // increase count by one - lReleaseCount是增加的计数
+							NULL) )       // not interested in previous count - lpPreviousCount是增加前的数值返回
+						{
+							printf("ReleaseSemaphore error: %d/n", GetLastError());
+						}
 					
 				}
 
@@ -151,13 +157,12 @@ DWORD WINAPI voice_udpsend_thread_runner(LPVOID lpParam)
          return -1;
     }
 
-        m_Socket = socket(AF_INET,SOCK_DGRAM,0);
-    if(m_Socket == INVALID_SOCKET)
-    {
+	m_Socket = socket(AF_INET,SOCK_DGRAM,0);
+	if(m_Socket == INVALID_SOCKET)
+	{
   //      Application->MessageBoxA("Socket Open failed","Error",MB_OK);
         WSACleanup();
-        MessageBox(NULL,"Wrong     WinSock     Version","Error",MB_OK);
-
+        MessageBox(NULL, "Wrong     WinSock     Version", "Error", MB_OK);
         return -1;
     }
 
@@ -180,17 +185,17 @@ DWORD WINAPI voice_udpsend_thread_runner(LPVOID lpParam)
     nZero=RcvBufLen;       //128K
     result=setsockopt(m_Socket,SOL_SOCKET,SO_RCVBUF,(char*)&nZero,sizeof((char*)&nZero));
 */
-   nAddr=inet_addr("192.168.2.2");
+	nAddr=inet_addr("192.168.2.2");
 
-   To.sin_family=AF_INET;
+	To.sin_family=AF_INET;
 #define RemotePort 8302
-   To.sin_port=htons(RemotePort);
-   To.sin_addr.S_un.S_addr=(int)nAddr;
+	To.sin_port=htons(RemotePort);
+	To.sin_addr.S_un.S_addr=(int)nAddr;
     
-    wb_vad_init(&(vadstate));
+	wb_vad_init(&(vadstate));
    
-   while(1)
-   {
+	while(1)
+	{
         // Try to enter the semaphore gate.
         DWORD dwWaitResult = WaitForSingleObject(
             ghSemaphore,   // handle to semaphore
@@ -204,7 +209,7 @@ DWORD WINAPI voice_udpsend_thread_runner(LPVOID lpParam)
 				if(pHeaderGet->recordvalid)
 				{
 						signed short * precdata = (signed short*)(&(pHeaderGet->data[0]));
-						int nLength = dwSample/1000*SAMPLINGPERIOD*2*wChannels;
+						int nLength = dwSample/1000*SAMPLINGPERIOD*2*wChannels + sizeof(int) + sizeof(DWORD);
 
 						for(i=0;i<FRAME_LEN;i++)		//??????
 						{
@@ -212,24 +217,24 @@ DWORD WINAPI voice_udpsend_thread_runner(LPVOID lpParam)
 						}
 						vad = wb_vad(vadstate,indata);	//??vad??
 
-					if(vad == 1)
-					{
-						nZeroPackageCount = 0;
-					}
-					else
-					{
-						nZeroPackageCount++;
-					}
+						if(vad == 1)
+						{
+							nZeroPackageCount = 0;
+						}
+						else
+						{
+							nZeroPackageCount++;
+						}
 
-					if((vad==0) && (nZeroPackageCount > 5))
-					{
-						printf("z=%d\n", nZeroPackageCount);
-						//当前面有5个静音包，则略过
-					}
-					else
-					{
-						sendto(m_Socket, &(pHeaderGet->data[0]), nLength, 0,(struct sockaddr*)&To,sizeof(struct sockaddr));
-					}
+						if((vad==0) && (nZeroPackageCount > 5))
+						{
+							printf("z=%d\n", nZeroPackageCount);
+							//当前面有5个静音包，则略过
+						}
+						else
+						{
+							sendto(m_Socket, &(pHeaderGet->data[0]), nLength, 0,(struct sockaddr*)&To,sizeof(struct sockaddr));
+						}
 						pHeaderGet->recordvalid = FALSE;
 						pHeaderGet = pHeaderGet->pNext;
 				}
@@ -244,7 +249,7 @@ void init_audio_buffer()
 	for(i=0;i<BUFCOUNT-1;i++)
 	{
 		buffers[i].pNext = &(buffers[i+1]);
-                buffers[i].data = (char*)malloc(dwSample/1000*SAMPLINGPERIOD*2*wChannels);                
+        //buffers[i].data = (char*)malloc(dwSample/1000*SAMPLINGPERIOD*2*wChannels);                
 		//buffers[i].valid = FALSE;
 #if SPEEX_ENABLED
 		buffers[i].recordvalid = FALSE;
@@ -252,7 +257,7 @@ void init_audio_buffer()
 		buffers[i].speexdecodevalid = FALSE;
 #endif
 	}
-        buffers[BUFCOUNT-1].data = (char*)malloc(dwSample/1000*SAMPLINGPERIOD*2*wChannels);
+	//buffers[BUFCOUNT-1].data = (char*)malloc(dwSample/1000*SAMPLINGPERIOD*2*wChannels);
 	buffers[BUFCOUNT-1].pNext = &(buffers[0]);
 	//buffers[BUFCOUNT-1].valid = FALSE;
 #if SPEEX_ENABLED
@@ -276,7 +281,7 @@ DWORD WINAPI voice_udprecv_thread_runner(LPVOID lpParam)
 {
     int  result;
     SOCKET      m_Socket;
-    unsigned long nAddr;
+    //unsigned long nAddr;
     struct sockaddr_in serveraddr;
     WSADATA     wsaData;
     WORD wVersionRequested;
@@ -457,6 +462,7 @@ void main()
 	}
 }
 
+#if 0
 void main1()
 {	
 		int i,frame=0,temp,vad; 
@@ -484,3 +490,4 @@ void main1()
 		fcloseall();
 		getchar();
 }
+#endif
