@@ -185,7 +185,7 @@ DWORD WINAPI voice_udpsend_thread_runner(LPVOID lpParam)
     nZero=RcvBufLen;       //128K
     result=setsockopt(m_Socket,SOL_SOCKET,SO_RCVBUF,(char*)&nZero,sizeof((char*)&nZero));
 */
-	nAddr=inet_addr("192.168.2.2");
+	nAddr=inet_addr("192.168.2.3");
 
 	To.sin_family=AF_INET;
 #define RemotePort 8302
@@ -215,8 +215,8 @@ DWORD WINAPI voice_udpsend_thread_runner(LPVOID lpParam)
 						{
 								indata[i]= (float)(precdata[i]);
 						}
-						vad = wb_vad(vadstate,indata);	//??vad??
-
+						//vad = wb_vad(vadstate,indata);	//??vad??
+						vad =1;//
 						if(vad == 1)
 						{
 							nZeroPackageCount = 0;
@@ -370,7 +370,7 @@ DWORD WINAPI voice_play_thread_runner(LPVOID   lpParam)
         // Try to enter the semaphore gate.
         DWORD dwWaitResult = WaitForSingleObject(
             ghSemaphore,   // handle to semaphore
-            5L);           // zero-second time-out interval
+            INFINITE);           // zero-second time-out interval
 
 
         if(dwWaitResult == WAIT_OBJECT_0)
@@ -437,7 +437,7 @@ void main()
 
     init_audio_buffer();
 
-#if 1
+#if 0
     hRecord = CreateThread((LPSECURITY_ATTRIBUTES)NULL, 0,
           (LPTHREAD_START_ROUTINE)voice_record_thread_runner,
           (LPVOID)eventRecord,0, &threadRecord);
@@ -459,6 +459,7 @@ void main()
 #endif
 	while(1)
 	{
+		Sleep(10000); 
 	}
 }
 

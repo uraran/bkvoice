@@ -208,7 +208,7 @@ DWORD WINAPI TMainForm::voice_udprecv_thread_runner(LPVOID lpParam)
     WSADATA     wsaData;
     WORD wVersionRequested;
     wVersionRequested = MAKEWORD(1,1);
-
+    TFileStream *fs = new TFileStream("recv.pcm", fmOpenWrite|fmCreate);
     if((result = WSAStartup(wVersionRequested,&wsaData))!=0)
     {
    //      Application->MessageBoxA("Socket Initial Error","Error",MB_OK);
@@ -250,6 +250,8 @@ DWORD WINAPI TMainForm::voice_udprecv_thread_runner(LPVOID lpParam)
                 //if(vad)
                 {
                         int recvlength = recvfrom(m_Socket, &(pHeaderGet->data[0]), nLength, 0, (struct sockaddr*)&serveraddr, &dwSenderSize);
+                        fs->Write(&(pHeaderGet->data[0]), 512);
+                        //fs->
                         printf("%d\n", recvlength);
                 }
                 pHeaderGet->recvvalid = TRUE;
