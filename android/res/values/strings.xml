@@ -2,4 +2,6 @@
 <resources>
     <string name="hello">Hello World, BkvoiceActivity!</string>
     <string name="app_name">bkvoice</string>
+    <string name="recv">接收</string>
+    <string name="send">发送</string>
 </resources>
