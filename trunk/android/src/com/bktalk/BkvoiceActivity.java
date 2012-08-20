@@ -10,31 +10,23 @@ import java.net.InetAddress;
 import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.concurrent.Semaphore;
-
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioTrack;
 import android.os.Bundle;
 import android.view.ContextMenu;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ContextMenu.ContextMenuInfo;
 import android.view.View.OnClickListener;
 import android.widget.Button;
 
-/**
- * @author talk
- *
- */
-/**
- * @author talk
- *
- */
-/**
- * @author talk
- *
- */
 public class BkvoiceActivity extends Activity {
+	static final int ABOUT_MENU_ITEM = 3;
+	static final int EXIT_MENU_ITEM = 8;
 	Button btnRecv = null;
 	Button btnSend = null;
 	boolean SavePCM = false;
@@ -69,10 +61,38 @@ public class BkvoiceActivity extends Activity {
 	}
 
 	@Override
-	public void onCreateContextMenu(ContextMenu menu, View v, ContextMenuInfo menuInfo) 
-	{
+	public void onCreateContextMenu(ContextMenu menu, View v,
+			ContextMenuInfo menuInfo) {
 		super.onCreateContextMenu(menu, v, menuInfo);
 		menu.add("退出");
+	};
+
+	@Override
+	public boolean onCreateOptionsMenu(Menu menu) {
+		super.onCreateOptionsMenu(menu);
+		menu.add(0, ABOUT_MENU_ITEM, 0, R.string.about);
+		menu.add(0, EXIT_MENU_ITEM, 0, R.string.send);
+		return true;
+
+	};
+
+	@Override
+	public boolean onOptionsItemSelected(MenuItem item) {
+		super.onOptionsItemSelected(item);
+		if(item.getItemId() == ABOUT_MENU_ITEM)
+		{
+			AlertDialog m_AlertDlg = new AlertDialog.Builder(this)
+			.setMessage(R.string.finish)
+			.setTitle(R.string.app_name)
+			.setIcon(R.drawable.icon)
+			.setCancelable(true)
+			.show();
+		}
+		else if(item.getItemId() == EXIT_MENU_ITEM)
+		{
+			this.finish();
+		}
+		return true;
 	};
 
 	OnClickListener btnClickListner = new OnClickListener() {
@@ -89,27 +109,24 @@ public class BkvoiceActivity extends Activity {
 
 	};
 
-	
-	public class AudioRecordThread implements Runnable
-	{
+	public class AudioRecordThread implements Runnable {
 		@Override
 		public void run() {
 			// TODO Auto-generated method stub
-			
+
 		}
-		
+
 	};
-	
-	public class UDPSendThread implements Runnable
-	{
+
+	public class UDPSendThread implements Runnable {
 		@Override
 		public void run() {
 			// TODO Auto-generated method stub
-			
+
 		}
-		
+
 	};
-	
+
 	public class AudioPlayThread implements Runnable {
 		FileOutputStream fosplay = null;
 		File file = null;

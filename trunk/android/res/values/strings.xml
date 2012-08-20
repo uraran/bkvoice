@@ -4,5 +4,6 @@
     <string name="app_name">bkvoice</string>
     <string name="recv">接收</string>
     <string name="send">发送</string>
-    <string name="exit">退出</string>
+    <string name="about">关于</string>
+    <string name="finish">退出</string>
 </resources>
