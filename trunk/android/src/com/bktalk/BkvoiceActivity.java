@@ -17,13 +17,23 @@ import android.media.AudioManager;
 import android.media.AudioTrack;
 import android.os.Bundle;
 import android.view.ContextMenu;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.ContextMenu.ContextMenuInfo;
 import android.view.View.OnClickListener;
 import android.widget.Button;
 
+/**
+ * @author talk
+ *
+ */
+/**
+ * @author talk
+ *
+ */
+/**
+ * @author talk
+ *
+ */
 public class BkvoiceActivity extends Activity {
 	Button btnRecv = null;
 	Button btnSend = null;
@@ -59,42 +69,12 @@ public class BkvoiceActivity extends Activity {
 	}
 
 	@Override
-	public void onCreateContextMenu(ContextMenu menu, View v,
-			ContextMenuInfo menuInfo) {
-		menu.add("点击我");
-		menu.add("哈哈哈");
-		menu.addSubMenu("12324354");// 这个被点击的时候onContextMenuClosed只会执行一次，而menu.add();添加的会执行两次
-	}
-
-	@Override
-	public boolean onContextItemSelected(MenuItem item) {
-		// AdapterContextMenuInfo info = (AdapterContextMenuInfo)
-		// item.getMenuInfo();
-		// Toast.makeText(this, "Longpress: " + info.position,
-		// Toast.LENGTH_SHORT).show();
-		System.out.println("item:" + item);
-
-		return true;
-	}
-
-	@Override
-	public boolean onCreateOptionsMenu(Menu menu) {
-	   super.onCreateOptionsMenu(menu);
-	   menu.add(0, 0, 0, R.string.exit);
-	   return true;
-	}
-	
-	@Override
-	public boolean onOptionsItemSelected(MenuItem item) 
+	public void onCreateContextMenu(ContextMenu menu, View v, ContextMenuInfo menuInfo) 
 	{
-		if(item.getItemId()== 0)
-		{
-			this.finish();
-		}
-		return true;
-		
+		super.onCreateContextMenu(menu, v, menuInfo);
+		menu.add("退出");
 	};
-	
+
 	OnClickListener btnClickListner = new OnClickListener() {
 		@Override
 		public void onClick(View v) {
@@ -102,21 +82,34 @@ public class BkvoiceActivity extends Activity {
 				(new Thread(new UDPRecvThread())).start();
 				(new Thread(new AudioPlayThread())).start();
 			} else if (v.getId() == R.id.btnSend) {
-				registerForContextMenu(btnSend);//这句就可以让view对象监听长按弹出菜单事件了  
+				(new Thread(new UDPRecvThread())).start();
+				(new Thread(new AudioPlayThread())).start();
 			}
 		}
 
 	};
 
-	public class AudioRecvThread implements Runnable {
+	
+	public class AudioRecordThread implements Runnable
+	{
 		@Override
 		public void run() {
 			// TODO Auto-generated method stub
-
+			
 		}
-
+		
 	};
-
+	
+	public class UDPSendThread implements Runnable
+	{
+		@Override
+		public void run() {
+			// TODO Auto-generated method stub
+			
+		}
+		
+	};
+	
 	public class AudioPlayThread implements Runnable {
 		FileOutputStream fosplay = null;
 		File file = null;
