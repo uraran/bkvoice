@@ -17,11 +17,12 @@ import android.widget.SeekBar;
 import android.widget.Toast;
 
 public class testRecord extends Activity {
+	int SIZE=2048;
 	/** Called when the activity is first created. */
 	Button btnRecord, btnStop, btnExit;
 	SeekBar skbVolume;// 调节音量
 	boolean isRecording = false;// 是否录放的标记
-	static final int frequency = 44100;
+	static final int frequency = 16000;
 	static final int channelConfiguration = AudioFormat.CHANNEL_CONFIGURATION_MONO;
 	static final int audioEncoding = AudioFormat.ENCODING_PCM_16BIT;
 	int recBufSize, playBufSize;
@@ -42,7 +43,7 @@ public class testRecord extends Activity {
 				channelConfiguration, audioEncoding);
 		// -----------------------------------------
 		audioRecord = new AudioRecord(MediaRecorder.AudioSource.MIC, frequency,
-				channelConfiguration, audioEncoding, recBufSize);
+				channelConfiguration, audioEncoding, recBufSize); 
 
 		audioTrack = new AudioTrack(AudioManager.STREAM_VOICE_CALL, frequency,
 				channelConfiguration, audioEncoding, playBufSize,
@@ -56,7 +57,7 @@ public class testRecord extends Activity {
 		btnExit.setOnClickListener(new ClickEvent());
 		skbVolume = (SeekBar) this.findViewById(R.id.skbVolume);
 		skbVolume.setMax(100);// 音量调节的极限
-		skbVolume.setProgress(70);// 设置seekbar的位置值
+		skbVolume.setProgress(2);// 设置seekbar的位置值
 		audioTrack.setStereoVolume(0.7f, 0.7f);// 设置当前音量大小
 		skbVolume
 				.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -108,23 +109,24 @@ public class testRecord extends Activity {
 		public void run() {
 			audioTrack.play();// 开始播放
 			while (isRecording) {
-				if (dataList.isEmpty()) {
+				if (dataList.isEmpty() || dataList.size() < 1) {
 					try {
-						Thread.sleep(200);
+						Thread.sleep(10);
 					} catch (InterruptedException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
 					}
 				} else {
+					byte[] tmpBuf = dataList.get(0);
+					audioTrack.write(tmpBuf, 0, tmpBuf.length);
 					lock.lock();
 					try {
-						byte[] tmpBuf = dataList.get(0);
-						audioTrack.write(tmpBuf, 0, tmpBuf.length);
 						dataList.remove(0);
 					} finally {
 						// 释放锁
 						lock.unlock();
 					}
+					//System.out.println(dataList.size());
 				}
 			}
 			audioTrack.stop();
@@ -134,17 +136,16 @@ public class testRecord extends Activity {
 	class RecordThread extends Thread {
 		public void run() {
 			try {
-				byte[] buffer = new byte[recBufSize];
+				byte[] buffer = new byte[SIZE];
 				audioRecord.startRecording();// 开始录制
 
 				while (isRecording) {
+					// 从MIC保存数据到缓冲区
+					int bufferReadResult = audioRecord.read(buffer, 0, SIZE);
+					
 					// 获取锁
 					lock.lock();
 					try {
-						// 从MIC保存数据到缓冲区
-						int bufferReadResult = audioRecord.read(buffer, 0,
-								recBufSize);
-
 						dataList.add(buffer);
 					} finally {
 						// 释放锁
