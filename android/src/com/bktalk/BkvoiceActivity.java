@@ -109,7 +109,7 @@ public class BkvoiceActivity extends Activity {
 				(new Thread(new AudioPlayThread())).start();
 			} else if (v.getId() == R.id.btnSend) {				
 				(new Thread(new AudioRecordThread())).start();
-				(new Thread(new UDPSendThread())).start();
+				//(new Thread(new UDPSendThread())).start();
 			}
 		}
 
