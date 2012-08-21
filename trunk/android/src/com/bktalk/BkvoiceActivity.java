@@ -9,13 +9,18 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.concurrent.Semaphore;
+
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.media.AudioFormat;
 import android.media.AudioManager;
+import android.media.AudioRecord;
 import android.media.AudioTrack;
+import android.media.MediaRecorder;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.ContextMenu;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -70,10 +75,11 @@ public class BkvoiceActivity extends Activity {
 	@Override
 	public boolean onCreateOptionsMenu(Menu menu) {
 		super.onCreateOptionsMenu(menu);
-		menu.add(0, ABOUT_MENU_ITEM, 0, R.string.about);
-		menu.add(0, EXIT_MENU_ITEM, 0, R.string.send);
+		MenuItem m = menu.add(0, ABOUT_MENU_ITEM, 0, R.string.about);
+		m.setIcon(android.R.drawable.ic_menu_info_details);
+		m = menu.add(0, EXIT_MENU_ITEM, 0, R.string.exit);
+		m.setIcon(android.R.drawable.ic_menu_close_clear_cancel);
 		return true;
-
 	};
 
 	@Override
@@ -82,7 +88,7 @@ public class BkvoiceActivity extends Activity {
 		if(item.getItemId() == ABOUT_MENU_ITEM)
 		{
 			AlertDialog m_AlertDlg = new AlertDialog.Builder(this)
-			.setMessage(R.string.finish)
+			.setMessage(R.string.about_message)
 			.setTitle(R.string.app_name)
 			.setIcon(R.drawable.icon)
 			.setCancelable(true)
@@ -101,18 +107,52 @@ public class BkvoiceActivity extends Activity {
 			if (v.getId() == R.id.btnRecv) {
 				(new Thread(new UDPRecvThread())).start();
 				(new Thread(new AudioPlayThread())).start();
-			} else if (v.getId() == R.id.btnSend) {
-				(new Thread(new UDPRecvThread())).start();
-				(new Thread(new AudioPlayThread())).start();
+			} else if (v.getId() == R.id.btnSend) {				
+				(new Thread(new AudioRecordThread())).start();
+				(new Thread(new UDPSendThread())).start();
 			}
 		}
 
 	};
 
 	public class AudioRecordThread implements Runnable {
+        private AudioRecord audioRecord;
+        private int min;
+        int frame_size;
+        public LinkedList<byte[]> dataList = new LinkedList<byte[]>();
+        
 		@Override
 		public void run() {
-			// TODO Auto-generated method stub
+            Log.i("TAG", "Record--------------" + Thread.currentThread().getId());
+
+            min = AudioRecord.getMinBufferSize(frequency, channelConfiguration, audioEncoding); 
+
+    		if (min == 640) {
+    			if (frame_size == 960) frame_size = 320;
+    			if (frame_size == 1024) frame_size = 160;
+    			min = 4096*3/2;
+    		} else if (min < 4096) {
+    			if (min <= 2048 && frame_size == 1024) frame_size /= 2;
+    			min = 4096*3/2;
+    		} else if (min == 4096) {
+    			min *= 3/2;
+    			if (frame_size == 960) frame_size = 320;
+    		} else {
+    			if (frame_size == 960) frame_size = 320;
+    			if (frame_size == 1024) frame_size *= 2;
+    		}
+    		
+            audioRecord = new AudioRecord(MediaRecorder.AudioSource.MIC, frequency, channelConfiguration, audioEncoding, min);
+            	
+            //audioRecord.getState()
+            audioRecord.startRecording();
+            
+            while(true) 
+            {
+				byte[] audioData = new byte[min];
+				audioRecord.read(audioData, 0, min);
+				dataList.add(audioData);
+            }
 
 		}
 
