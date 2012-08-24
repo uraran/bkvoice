@@ -140,9 +140,12 @@ public class testRecord extends Activity {
 				audioRecord.startRecording();// 开始录制
 
 				while (isRecording) {
+					int pos;
 					// 从MIC保存数据到缓冲区
-					int bufferReadResult = audioRecord.read(buffer, 0, SIZE);
+					int bufferReadResult = audioRecord.read(buffer, pos, SIZE);
 					
+					if(bufferReadResult <= 0)
+						continue;
 					// 获取锁
 					lock.lock();
 					try {
