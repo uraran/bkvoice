@@ -6,7 +6,7 @@ src/c2t64fx.c   src/dtx.c      src/hp6k.c     src/levinson.c  src/pitch_f4.c   s
 src/c4t64fx.c   src/gpclip.c   src/hp_wsp.c   src/log2.c      src/pit_shrp.c   src/qpisf_2s.c  src/syn_filt.c  src/weight_a.c \
 src/convolve.c  src/g_pitch.c  src/int_lpc.c  src/lp_dec2.c   src/p_med_ol.c   src/q_pulse.c   src/updt_tar.c \
 common/cmnMemory.c \
-test.c
+vadtest.c
 
 
 arm-linux-gcc -o testarm -I./inc -I./common/include/ -DASM_OPT \
@@ -20,6 +20,6 @@ src/asm/ARMV5E/convolve_opt.s   src/asm/ARMV5E/Dot_p_opt.s       src/asm/ARMV5E/
 src/asm/ARMV5E/cor_h_vec_opt.s  src/asm/ARMV5E/Filt_6k_7k_opt.s  src/asm/ARMV5E/residu_asm_opt.s  src/asm/ARMV5E/syn_filt_opt.s \
 src/asm/ARMV5E/Deemph_32_opt.s  src/asm/ARMV5E/Norm_Corr_opt.s   src/asm/ARMV5E/scale_sig_opt.s \
 common/cmnMemory.c \
-test.c
+vadtest.c
 
 
