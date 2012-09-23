@@ -20,8 +20,8 @@
 #define CHANNELS 1  /* 1 = mono 2 = stereo */
 
 /* this buffer holds the digitized audio */
-unsigned char buf[LENGTH*RATE*SIZE*CHANNELS/8/1000];
-#define SERVERIP      "192.168.2.114"
+unsigned char buf[LENGTH*RATE*SIZE*CHANNELS/8/1000 + 8];
+#define SERVERIP      "192.168.2.6"
 #define SERVERPORT    8302 
 int main()   
 {      
@@ -35,6 +35,8 @@ int main()
     FILE *fp1;   
     VO_MEM_OPERATOR voMemoprator;
     struct sockaddr_in dest_addr;
+    int* PackageNO;//包序号
+    int tmpPackageNO=0;
 
     int fdsocket = socket(AF_INET, SOCK_DGRAM, 0);    
     if (fdsocket == -1) 
@@ -91,6 +93,7 @@ int main()
 #if 0
     while(!feof(fp1))   
 #endif
+    PackageNO = (int*)(&(buf[512]));
     while(1)
     {      
 #if 0
@@ -105,12 +108,13 @@ int main()
             indata[i]=indata[i]-65536;   
         }   
 #endif
-        printf("start while\n");
+        //printf("start while\n");
         status = read(fd, buf, sizeof(buf)); /* record some sound */
         //printf("111111111111111111\n");
         if (status != sizeof(buf))
           perror("read wrong number of bytes");
 
+        (*PackageNO) = tmpPackageNO++;
         status = sendto(fdsocket, buf, sizeof(buf), 0, (struct sockaddr*)&dest_addr, sizeof(struct sockaddr));    
         if(status == -1)
         {
@@ -118,8 +122,10 @@ int main()
         }
 
         //printf("2222222222222222222\n");
-        vad=wb_vad(vadstate, (short*)buf);    //进行vad检测   
-        printf("%d,",vad);   
+        //vad=wb_vad(vadstate, (short*)buf);    //进行vad检测   
+        //printf("%d,",vad);  
+  
+        printf("NO=%d\n", *PackageNO); 
     }   
     printf("ok!");   
     fcloseall();   
