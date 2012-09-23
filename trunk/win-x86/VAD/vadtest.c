@@ -327,9 +327,10 @@ DWORD WINAPI voice_udprecv_thread_runner(LPVOID lpParam)
 
                 //if(vad)
                 {
-                        int recvlength = recvfrom(m_Socket, &(pHeaderPut->data[0]), nLength, 0, (struct sockaddr*)&serveraddr, &dwSenderSize);
+                        int recvlength = recvfrom(m_Socket, &(pHeaderPut->data[0]), nLength+8, 0, (struct sockaddr*)&serveraddr, &dwSenderSize);
                         //printf("%d\n", recvlength);
                 }
+				printf("recvNO=%d,", pHeaderPut->frameNO);
                 pHeaderPut->recvvalid = TRUE;
                 pHeaderPut = pHeaderPut->pNext;
 
@@ -397,12 +398,15 @@ DWORD WINAPI voice_play_thread_runner(LPVOID   lpParam)
 				nZeroPackageCount++;
 			}
 
+			printf("NO=%d\n", pHeaderGet->frameNO);
+#if 0
 			if((vad==0) && (nZeroPackageCount > 20))
 			{
 				printf("z=%d\n", nZeroPackageCount);
 				//当前面有5个静音包，则略过
 			}
 			else
+#endif
 			{
 				if( 0 != playWavData((char*)&(pHeaderGet->data[0]), dwSample/1000*SAMPLINGPERIOD*2*wChannels))
 				{
