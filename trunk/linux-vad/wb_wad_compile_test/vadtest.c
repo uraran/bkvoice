@@ -1,43 +1,100 @@
 #include "stdio.h"   
 #include "wb_vad.h"   
 #include "cmnMemory.h"
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/ioctl.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <linux/soundcard.h>
+
+#define LENGTH 16    /* how many seconds of speech to store */
+#define RATE 16000   /* the sampling rate */
+#define SIZE 16      /* sample size: 8 or 16 bits */
+#define CHANNELS 1  /* 1 = mono 2 = stereo */
+
+/* this buffer holds the digitized audio */
+unsigned char buf[LENGTH*RATE*SIZE*CHANNELS/8/1000];
 
 void main()   
 {      
-        int i,frame=0,temp,vad;    
-        //float indata[FRAME_LEN];   
-        short indata[FRAME_LEN];   
-        VadVars *vadstate;                     
-        FILE *fp1;   
-	    VO_MEM_OPERATOR voMemoprator;
+    int fd;	/* sound device file descriptor */
+    int arg;	/* argument for ioctl calls */
+    int status;   /* return status of system calls */
+    int i,frame=0,temp,vad;    
+    //float indata[FRAME_LEN];   
+    short indata[FRAME_LEN];   
+    VadVars *vadstate;                     
+    FILE *fp1;   
+    VO_MEM_OPERATOR voMemoprator;
 
-		voMemoprator.Alloc = cmnMemAlloc;
-		voMemoprator.Copy = cmnMemCopy;
-		voMemoprator.Free = cmnMemFree;
-		voMemoprator.Set = cmnMemSet;
-		voMemoprator.Check = cmnMemCheck;
+    /* open sound device */
+    fd = open("/dev/dsp", O_RDWR);
+    if (fd < 0) {
+      perror("open of /dev/dsp failed");
+      exit(1);
+    }
 
-        printf("main: 11111111111111\n");
-        fp1=fopen("test1.wav","rb");   
-        printf("main: 22222222\n");
-        wb_vad_init(&(vadstate), &voMemoprator);           //vad初始化   
-        printf("main: 333333333333\n");
-        while(!feof(fp1))   
+    /* set sampling parameters */
+    arg = SIZE;	   /* sample size */
+    status = ioctl(fd, SOUND_PCM_WRITE_BITS, &arg);
+    if (status == -1)
+      perror("SOUND_PCM_WRITE_BITS ioctl failed");
+    if (arg != SIZE)
+      perror("unable to set sample size");
+
+    arg = CHANNELS;  /* mono or stereo */
+    status = ioctl(fd, SOUND_PCM_WRITE_CHANNELS, &arg);
+    if (status == -1)
+      perror("SOUND_PCM_WRITE_CHANNELS ioctl failed");
+    if (arg != CHANNELS)
+      perror("unable to set number of channels");
+
+    arg = RATE;	   /* sampling rate */
+    status = ioctl(fd, SOUND_PCM_WRITE_RATE, &arg);
+    if (status == -1)
+      perror("SOUND_PCM_WRITE_WRITE ioctl failed");
+
+    voMemoprator.Alloc = cmnMemAlloc;
+    voMemoprator.Copy = cmnMemCopy;
+    voMemoprator.Free = cmnMemFree;
+    voMemoprator.Set = cmnMemSet;
+    voMemoprator.Check = cmnMemCheck;
+#if 0
+    printf("main: 11111111111111\n");
+    fp1=fopen("test1.wav","rb");   
+    printf("main: 22222222\n");
+#endif
+    wb_vad_init(&(vadstate), &voMemoprator);           //vad初始化   
+    printf("main: 333333333333\n");
+#if 0
+    while(!feof(fp1))   
+#endif
+    while(1)
+    {      
+#if 0
+        frame++;   
+        for(i=0;i<FRAME_LEN;i++)     //读取语音文件   
         {      
-            frame++;   
-            for(i=0;i<FRAME_LEN;i++)     //读取语音文件   
-            {      
-                indata[i]=0;   
-                temp=0;   
-                fread(&temp,2,1,fp1);   
-                indata[i] = temp;   
-                if(indata[i]>65535/2)   
-                indata[i]=indata[i]-65536;   
-            }   
-            vad=wb_vad(vadstate,indata);    //进行vad检测   
-            printf("%d,",vad);   
+            indata[i]=0;   
+            temp=0;   
+            fread(&temp,2,1,fp1);   
+            indatax[i] = temp;   
+            if(indata[i]>65535/2)   
+            indata[i]=indata[i]-65536;   
         }   
-        printf("ok!");   
-        fcloseall();   
-        getchar();   
+#endif
+        printf("start while\n");
+        status = read(fd, buf, sizeof(buf)); /* record some sound */
+        //printf("111111111111111111\n");
+        if (status != sizeof(buf))
+          perror("read wrong number of bytes");
+        //printf("2222222222222222222\n");
+        vad=wb_vad(vadstate, (short*)buf);    //进行vad检测   
+        printf("%d,",vad);   
+    }   
+    printf("ok!");   
+    fcloseall();   
+    getchar();   
 }   

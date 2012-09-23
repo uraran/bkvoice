@@ -13,7 +13,7 @@
 #include <stdio.h>
 #include <linux/soundcard.h>
 
-#define LENGTH 20    /* how many seconds of speech to store */
+#define LENGTH 16    /* how many seconds of speech to store */
 #define RATE 16000   /* the sampling rate */
 #define SIZE 16      /* sample size: 8 or 16 bits */
 #define CHANNELS 1  /* 1 = mono 2 = stereo */
