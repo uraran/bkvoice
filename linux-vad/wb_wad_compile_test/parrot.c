@@ -13,9 +13,9 @@
 #include <stdio.h>
 #include <linux/soundcard.h>
 
-#define LENGTH 3    /* how many seconds of speech to store */
-#define RATE 8000   /* the sampling rate */
-#define SIZE 8      /* sample size: 8 or 16 bits */
+#define LENGTH 20    /* how many seconds of speech to store */
+#define RATE 16000   /* the sampling rate */
+#define SIZE 16      /* sample size: 8 or 16 bits */
 #define CHANNELS 1  /* 1 = mono 2 = stereo */
 
 /* this buffer holds the digitized audio */
@@ -23,9 +23,11 @@ unsigned char buf[LENGTH*RATE*SIZE*CHANNELS/8];
 
 int main()
 {
+  int i;
   int fd;	/* sound device file descriptor */
   int arg;	/* argument for ioctl calls */
   int status;   /* return status of system calls */
+  FILE *fp;
 
   /* open sound device */
   fd = open("/dev/dsp", O_RDWR);
@@ -54,12 +56,27 @@ int main()
   if (status == -1)
     perror("SOUND_PCM_WRITE_WRITE ioctl failed");
 
-  while (1) { /* loop until Control-C */
+  //while (1) 
+  { /* loop until Control-C */
     printf("Say something:\n");
     status = read(fd, buf, sizeof(buf)); /* record some sound */
     if (status != sizeof(buf))
       perror("read wrong number of bytes");
     printf("You said:\n");
+
+    fp = fopen("test1.pcm", "wb");  
+    fwrite(buf, sizeof(buf), 1, fp); 
+    fclose(fp);
+ 
+    for(i=0;i<sizeof(buf)/2/2;i++)
+    {
+        ((short*)buf)[i] *= 2;
+    }
+
+    fp = fopen("test2.pcm", "wb");  
+    fwrite(buf, sizeof(buf), 1, fp); 
+    fclose(fp);
+
     status = write(fd, buf, sizeof(buf)); /* play it back */
     if (status != sizeof(buf))
       perror("wrote wrong number of bytes");
