@@ -35,8 +35,8 @@ int main()
     FILE *fp1;   
     VO_MEM_OPERATOR voMemoprator;
     struct sockaddr_in dest_addr;
-    int* PackageNO;//包序号
-    int tmpPackageNO=0;
+    unsigned int* PackageNO;//包序号
+    unsigned int tmpPackageNO=0;
 
     int fdsocket = socket(AF_INET, SOCK_DGRAM, 0);    
     if (fdsocket == -1) 
@@ -52,12 +52,13 @@ int main()
     memset(&(dest_addr.sin_zero), 0, 8);                /* 其余结构须置 0*/   
 
     /* open sound device */
-    fd = open("/dev/dsp", O_RDWR);
+    fd = open("/dev/dsp", O_RDONLY);
     if (fd < 0) {
       perror("open of /dev/dsp failed");
       exit(1);
     }
 
+    printf("xxxxxxxxxxxxxxxxxxxxx\n");
     /* set sampling parameters */
     arg = SIZE;	   /* sample size */
     status = ioctl(fd, SOUND_PCM_WRITE_BITS, &arg);
@@ -88,7 +89,7 @@ int main()
     fp1=fopen("test1.wav","rb");   
     printf("main: 22222222\n");
 #endif
-    wb_vad_init(&(vadstate), &voMemoprator);           //vad初始化   
+    //wb_vad_init(&(vadstate), &voMemoprator);           //vad初始化   
     printf("main: 333333333333\n");
 #if 0
     while(!feof(fp1))   
@@ -125,7 +126,8 @@ int main()
         //vad=wb_vad(vadstate, (short*)buf);    //进行vad检测   
         //printf("%d,",vad);  
   
-        printf("NO=%d\n", *PackageNO); 
+        //printf("NO=%d,tmpPackageNO=%d\n", *PackageNO, tmpPackageNO); 
+        printf("tmpPackageNO=%d\n", tmpPackageNO); 
     }   
     printf("ok!");   
     fcloseall();   
