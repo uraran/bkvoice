@@ -22,7 +22,7 @@
 #if SPEEX_ENABLED
 #define BUFCOUNT          6400
 #else
-#define BUFCOUNT          64
+#define BUFCOUNT          2048
 #endif
 
 #define  SAMPLINGPERIOD   16 //采样周期,单位ms

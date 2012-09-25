@@ -319,7 +319,7 @@ DWORD WINAPI voice_udprecv_thread_runner(LPVOID lpParam)
    while(1)
    {
         //sendto(m_Socket,"dddddddd", 5, 0,(struct sockaddr*)&To,sizeof(struct sockaddr));
-        if(pHeaderPut->recvvalid == FALSE)
+        //if(pHeaderPut->recvvalid == FALSE)
         {
                 signed short * recvdata = (signed short*)(&(pHeaderPut->data[0]));
                 int nLength = dwSample/1000*SAMPLINGPERIOD*2*wChannels;
@@ -399,10 +399,16 @@ DWORD WINAPI voice_play_thread_runner(LPVOID   lpParam)
 			}
 
 			printf("NO=%d\n", pHeaderGet->frameNO);
-#if 0
-			if((vad==0) && (nZeroPackageCount > 20))
+#if 1
+			if((vad==0) && (nZeroPackageCount > 60))
 			{
 				printf("z=%d\n", nZeroPackageCount);
+				while(pHeaderGet != pHeaderPut)
+				{
+					pHeaderGet->recvvalid = FALSE;//因为是跳过的数据包
+					pHeaderGet = pHeaderGet->pNext;
+				}
+				
 				//当前面有5个静音包，则略过
 			}
 			else
