@@ -1,6 +1,5 @@
 #include "stdio.h"   
 #include "wb_vad.h"   
-#include "cmnMemory.h"
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/types.h>
@@ -31,11 +30,10 @@ int main()
     int arg;	/* argument for ioctl calls */
     int status;   /* return status of system calls */
     int i,frame=0,temp,vad;    
-    //float indata[FRAME_LEN];   
-    short indata[FRAME_LEN];   
+    float indata[FRAME_LEN];   
+    //short indata[FRAME_LEN];   
     VadVars *vadstate;                     
     FILE *fp1;   
-    VO_MEM_OPERATOR voMemoprator;
     struct sockaddr_in dest_addr;
     unsigned int* PackageNO;//包序号
     unsigned int tmpPackageNO=0;
@@ -80,18 +78,12 @@ int main()
     status = ioctl(fd, SOUND_PCM_WRITE_RATE, &arg);
     if (status == -1)
       perror("SOUND_PCM_WRITE_WRITE ioctl failed");
-
-    voMemoprator.Alloc = cmnMemAlloc;
-    voMemoprator.Copy = cmnMemCopy;
-    voMemoprator.Free = cmnMemFree;
-    voMemoprator.Set = cmnMemSet;
-    voMemoprator.Check = cmnMemCheck;
 #if 0
     printf("main: 11111111111111\n");
     fp1=fopen("test1.wav","rb");   
     printf("main: 22222222\n");
 #endif
-    wb_vad_init(&(vadstate), &voMemoprator);           //vad初始化   
+    wb_vad_init(&(vadstate));           //vad初始化   
     printf("main: 333333333333\n");
 #if 0
     while(!feof(fp1))   
@@ -117,7 +109,14 @@ int main()
         if (status != sizeof(buf))
           perror("read wrong number of bytes");
 
-        vad=wb_vad(vadstate, (short*)buf);    //进行vad检测   
+        for(i=0;i<FRAME_LEN;i++)     //读取语音文件   
+        {      
+            //short *s = (short*)(&buf[i]);
+            indata[i] = (float)(*(short*)(&buf[i]));
+        }
+        
+        vad = 1;
+        //vad=wb_vad(vadstate, indata);    //进行vad检测   
         printf("%d\n", vad);
 		if(vad == 1)
 		{
@@ -135,6 +134,7 @@ int main()
         }
         else
         {
+            printf("发送\n");
             status = sendto(fdsocket, buf, sizeof(buf), 0, (struct sockaddr*)&dest_addr, sizeof(struct sockaddr));    
             if(status == -1)
             {
