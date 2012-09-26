@@ -14,6 +14,8 @@
 #include <sys/time.h>
 #include <string.h>
 
+#define VAD_ENABLED  0
+
 #define LENGTH 16    /* how many seconds of speech to store */
 #define RATE 16000   /* the sampling rate */
 #define SIZE 16      /* sample size: 8 or 16 bits */
@@ -21,7 +23,7 @@
 
 /* this buffer holds the digitized audio */
 unsigned char buf[LENGTH*RATE*SIZE*CHANNELS/8/1000 + 8];
-#define SERVERIP      "192.168.2.233"
+#define SERVERIP      "192.168.2.6"
 #define SERVERPORT    8302 
 static int nZeroPackageCount = 0;//连续VAD=0个数
 
@@ -33,9 +35,11 @@ int main()
     int i,frame=0,temp,vad;    
     //float indata[FRAME_LEN];   
     short indata[FRAME_LEN];   
-    VadVars *vadstate;                     
     FILE *fp1;   
+#if VAD_ENABLED
+    VadVars *vadstate;                     
     VO_MEM_OPERATOR voMemoprator;
+#endif
     struct sockaddr_in dest_addr;
     unsigned int* PackageNO;//包序号
     unsigned int tmpPackageNO=0;
@@ -81,17 +85,24 @@ int main()
     if (status == -1)
       perror("SOUND_PCM_WRITE_WRITE ioctl failed");
 
+#if VAD_ENABLED
     voMemoprator.Alloc = cmnMemAlloc;
     voMemoprator.Copy = cmnMemCopy;
     voMemoprator.Free = cmnMemFree;
     voMemoprator.Set = cmnMemSet;
     voMemoprator.Check = cmnMemCheck;
+#endif
+
 #if 0
     printf("main: 11111111111111\n");
     fp1=fopen("test1.wav","rb");   
     printf("main: 22222222\n");
 #endif
-    wb_vad_init(&(vadstate), &voMemoprator);           //vad初始化   
+
+#if VAD_ENABLED
+    wb_vad_init(&(vadstate), &voMemoprator);           //vad初始化
+#endif
+
     printf("main: 333333333333\n");
 #if 0
     while(!feof(fp1))   
@@ -117,23 +128,26 @@ int main()
         if (status != sizeof(buf))
           perror("read wrong number of bytes");
 
+#if VAD_ENABLED
         vad=wb_vad(vadstate, (short*)buf);    //进行vad检测   
         printf("%d\n", vad);
-		if(vad == 1)
-		{
-			nZeroPackageCount = 0;
-		}
-		else
-		{
-			nZeroPackageCount++;
-		}
-		
+		    if(vad == 1)
+		    {
+			    nZeroPackageCount = 0;
+		    }
+		    else
+		    {
+			    nZeroPackageCount++;
+		    }
+#endif
         (*PackageNO) = tmpPackageNO++;
         
+#if VAD_ENABLED
         if(nZeroPackageCount > 60)
         {
         }
         else
+#endif
         {
             status = sendto(fdsocket, buf, sizeof(buf), 0, (struct sockaddr*)&dest_addr, sizeof(struct sockaddr));    
             if(status == -1)
