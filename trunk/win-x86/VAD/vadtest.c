@@ -400,15 +400,17 @@ DWORD WINAPI voice_play_thread_runner(LPVOID   lpParam)
 
 			printf("NO=%d\n", pHeaderGet->frameNO);
 #if 1
-			if((vad==0) && (nZeroPackageCount > 60))
+			if((vad==0) && (nZeroPackageCount > 30))
 			{
 				printf("z=%d\n", nZeroPackageCount);
+				nZeroPackageCount = 0;
+#if 1
 				while(pHeaderGet != pHeaderPut)
 				{
 					pHeaderGet->recvvalid = FALSE;//因为是跳过的数据包
 					pHeaderGet = pHeaderGet->pNext;
 				}
-				
+#endif
 				//当前面有5个静音包，则略过
 			}
 			else
