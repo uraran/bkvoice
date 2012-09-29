@@ -435,17 +435,18 @@ DWORD WINAPI voice_play_thread_runner(LPVOID   lpParam)
 			else
 #endif
 			{
+				if(pHeaderGet->pPrior->frameNO > pHeaderGet->frameNO)
+				{
+					printf("不能播放比当前更早的数据包, pHeaderGet->pPrior->frameNO=%d,pHeaderGet->frameNO=%d\n",pHeaderGet->pPrior->frameNO, pHeaderGet->frameNO);
+					fprintf(logFile, "不能播放比当前更早的数据包, pHeaderGet->pPrior->frameNO=%d,pHeaderGet->frameNO=%d\n",pHeaderGet->pPrior->frameNO, pHeaderGet->frameNO);
+				}
+
 				if( 0 != playWavData((char*)&(pHeaderGet->data[0]), dwSample/1000*SAMPLINGPERIOD*2*wChannels))
 				{
 					printf("Playing Wave Data Failed!\n");
 				}
 			}
 			pHeaderGet->recvvalid = FALSE;
-			if(pHeaderGet->pNext->frameNO < pHeaderGet->frameNO)
-			{
-				printf("不能播放比当前更早的数据包, pHeaderGet->pNext->frameNO=%d,pHeaderGet->frameNO=%d\n",pHeaderGet->pNext->frameNO, pHeaderGet->frameNO);
-				fprintf(logFile, "不能播放比当前更早的数据包, pHeaderGet->pNext->frameNO=%d,pHeaderGet->frameNO=%d\n",pHeaderGet->pNext->frameNO, pHeaderGet->frameNO);
-			}
 
 			if(pHeaderGet->frameNO - pHeaderGet->pPrior->frameNO!= 1)
 			{
