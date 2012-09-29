@@ -20,6 +20,8 @@ HANDLE hRecord, hPlay, hUDPSend, hUDPRecv;
 HANDLE eventRecord, eventPlay, eventUDPSend, eventUDPRecv;
 DWORD threadRecord, threadPlay, threadUDPSend, threadUDPRecv;
 
+static FILE *logFile;
+
 typedef struct tagAudioBuf AUDIOBUF, *pAUDIOBUF;
 
 //音频采集播放结构
@@ -33,7 +35,7 @@ struct tagAudioBuf
 	//short data[SIZE_AUDIO_FRAME/2];
 	//char *data;
     char data[512];
-	int frameNO;//帧序号
+	unsigned int frameNO;//帧序号
 	DWORD time;//时间
 #if SPEEX_ENABLED	
 	char speexencodevalid;//speex编码后的数据是否还有效
@@ -279,6 +281,7 @@ void init_audio_buffer()
 //声音发送线程
 DWORD WINAPI voice_udprecv_thread_runner(LPVOID lpParam)
 {
+	AUDIOBUF tmpbuf;
     int  result;
     SOCKET      m_Socket;
     //unsigned long nAddr;
@@ -312,7 +315,7 @@ DWORD WINAPI voice_udprecv_thread_runner(LPVOID lpParam)
 
     if(bind(m_Socket,(struct sockaddr*)&serveraddr,sizeof(serveraddr))<0)
     {
-        printf("bind() ???????.\r\n");
+        printf("bind() 端口错误.\r\n");
         //close(sock);
     }
 
@@ -325,15 +328,24 @@ DWORD WINAPI voice_udprecv_thread_runner(LPVOID lpParam)
                 int nLength = dwSample/1000*SAMPLINGPERIOD*2*wChannels;
                 int dwSenderSize =sizeof(serveraddr);
 
+				
                 //if(vad)
-                {
-                        int recvlength = recvfrom(m_Socket, &(pHeaderPut->data[0]), nLength+8, 0, (struct sockaddr*)&serveraddr, &dwSenderSize);
+                //{
+					int recvlength = recvfrom(m_Socket, &(tmpbuf.data[0]), nLength+8, 0, (struct sockaddr*)&serveraddr, &dwSenderSize);
                         //printf("%d\n", recvlength);
-                }
-				printf("recvNO=%d,", pHeaderPut->frameNO);
-                pHeaderPut->recvvalid = TRUE;
-                pHeaderPut = pHeaderPut->pNext;
-
+               // }
+				if((pHeaderGet->frameNO > 0) && (tmpbuf.frameNO < pHeaderGet->frameNO))
+				{
+					printf("不接收太早的数据包\n");
+				}
+				else
+				{
+					memcpy(&(pHeaderPut->data[0]),  &(tmpbuf.data[0]), recvlength);
+					printf("rNO=%d\n", pHeaderPut->frameNO);
+					fprintf(logFile, "rNO=%d\n", pHeaderPut->frameNO);
+					pHeaderPut->recvvalid = TRUE;
+					pHeaderPut = pHeaderPut->pNext;
+				}
                 if (!ReleaseSemaphore( 
                     ghSemaphore,  // handle to semaphore - hSemaphore是要增加的信号量句柄
                     1,            // increase count by one - lReleaseCount是增加的计数
@@ -398,7 +410,8 @@ DWORD WINAPI voice_play_thread_runner(LPVOID   lpParam)
 				nZeroPackageCount++;
 			}
 
-			printf("NO=%d\n", pHeaderGet->frameNO);
+			printf("             pNO=%d\n", pHeaderGet->frameNO);
+			fprintf(logFile, "             pNO=%d\n", pHeaderGet->frameNO);
 #if 1
 			if((vad==0) && (nZeroPackageCount > 30))
 			{
@@ -422,7 +435,19 @@ DWORD WINAPI voice_play_thread_runner(LPVOID   lpParam)
 				}
 			}
 			pHeaderGet->recvvalid = FALSE;
-			pHeaderGet = pHeaderGet->pNext;			
+			if(pHeaderGet->pNext->frameNO < pHeaderGet->frameNO)
+			{
+				printf("不能播放比当前更早的数据包, pHeaderGet->pNext->frameNO=%d,pHeaderGet->frameNO=%d\n",pHeaderGet->pNext->frameNO, pHeaderGet->frameNO);
+				fprintf(logFile, "不能播放比当前更早的数据包, pHeaderGet->pNext->frameNO=%d,pHeaderGet->frameNO=%d\n",pHeaderGet->pNext->frameNO, pHeaderGet->frameNO);
+			}
+
+			if(pHeaderGet->pNext->frameNO - pHeaderGet->frameNO != 1)
+			{
+				printf("不连续,frameNO=%d,Next->NO=%d\n",pHeaderGet->frameNO, pHeaderGet->pNext->frameNO);
+				fprintf(logFile, "不连续,frameNO=%d,Next->NO=%d\n",pHeaderGet->frameNO, pHeaderGet->pNext->frameNO);
+			}
+
+			pHeaderGet = pHeaderGet->pNext;	
 		}
         }
 
@@ -434,6 +459,8 @@ DWORD WINAPI voice_play_thread_runner(LPVOID   lpParam)
 
 void main()
 {
+	logFile = _wfopen(L"log.txt", L"w");
+
     eventRecord = CreateEvent(NULL,   TRUE,   FALSE,   NULL); 	
     eventPlay   = CreateEvent(NULL,   TRUE,   FALSE,   NULL);
 
