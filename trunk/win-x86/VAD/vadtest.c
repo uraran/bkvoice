@@ -30,7 +30,8 @@ struct tagAudioBuf
 	//char valid;
 	char recordvalid;//录音有效
 	char recvvalid;//
-	pAUDIOBUF pNext;
+	pAUDIOBUF pPrior;//前指针
+	pAUDIOBUF pNext;//后指针
 	int count;//有效数据数量
 	//short data[SIZE_AUDIO_FRAME/2];
 	//char *data;
@@ -244,13 +245,15 @@ DWORD WINAPI voice_udpsend_thread_runner(LPVOID lpParam)
    }
 }
 
+//双向链表初始化
 void init_audio_buffer()
 {
 	int i;
 
-	for(i=0;i<BUFCOUNT-1;i++)
+	for(i=1;i<BUFCOUNT-1;i++)
 	{
-		buffers[i].pNext = &(buffers[i+1]);
+		buffers[i].pPrior = &(buffers[i-1]);
+		buffers[i].pNext  = &(buffers[i+1]);
         //buffers[i].data = (char*)malloc(dwSample/1000*SAMPLINGPERIOD*2*wChannels);                
 		//buffers[i].valid = FALSE;
 #if SPEEX_ENABLED
@@ -259,7 +262,10 @@ void init_audio_buffer()
 		buffers[i].speexdecodevalid = FALSE;
 #endif
 	}
+	buffers[0].pPrior =  &(buffers[BUFCOUNT-1]);
+	buffers[0].pNext  =  &(buffers[1]);
 	//buffers[BUFCOUNT-1].data = (char*)malloc(dwSample/1000*SAMPLINGPERIOD*2*wChannels);
+	buffers[BUFCOUNT-1].pPrior =  &(buffers[BUFCOUNT-2]);
 	buffers[BUFCOUNT-1].pNext = &(buffers[0]);
 	//buffers[BUFCOUNT-1].valid = FALSE;
 #if SPEEX_ENABLED
@@ -441,10 +447,10 @@ DWORD WINAPI voice_play_thread_runner(LPVOID   lpParam)
 				fprintf(logFile, "不能播放比当前更早的数据包, pHeaderGet->pNext->frameNO=%d,pHeaderGet->frameNO=%d\n",pHeaderGet->pNext->frameNO, pHeaderGet->frameNO);
 			}
 
-			if(pHeaderGet->pNext->frameNO - pHeaderGet->frameNO != 1)
+			if(pHeaderGet->frameNO - pHeaderGet->pPrior->frameNO!= 1)
 			{
-				printf("不连续,frameNO=%d,Next->NO=%d\n",pHeaderGet->frameNO, pHeaderGet->pNext->frameNO);
-				fprintf(logFile, "不连续,frameNO=%d,Next->NO=%d\n",pHeaderGet->frameNO, pHeaderGet->pNext->frameNO);
+				printf("不连续,pPrior->frameNO=%d, NO=%d\n",pHeaderGet->pPrior->frameNO, pHeaderGet->frameNO);
+				fprintf(logFile, "不连续,pPrior->frameNO=%d, NO=%d\n",pHeaderGet->pPrior->frameNO, pHeaderGet->frameNO);
 			}
 
 			pHeaderGet = pHeaderGet->pNext;	
