@@ -23,15 +23,24 @@
 #define RECORD_RECV_PCM            0
 #define RECORD_PLAY_PCM            0
 
+#define MAX_SEND_NO                6
 //char buffer[SAMPLERATE/1000*READMSFORONCE*sizeof(short)];
 struct AudioBuffer;
 typedef struct AudioBuffer
 {
     unsigned char buffer[SAMPLERATE/1000*READMSFORONCE*sizeof(short)];
     int FrameNO;//包序号
-    int Valid;//包是否有效
+	  int time;//timestampe
+	  char SendNO;//
+    char Valid;//包是否有效
+    char reserver0;//
+    char reserver1;//
+    char reserver2;//
+    char reserver3;//
+    char reserver4;//
+    char reserver5;//
     struct AudioBuffer  *pNext;
     int count;//实际有效字节数量
-} AUDIOBUFFER;
+} __attribute__ ((packed)) AUDIOBUFFER;
 
 #endif
