@@ -204,10 +204,92 @@ void * network_recv_thread(void *p)
 //清除接收线程
 void remove_network_recv()
 {
+
 }
 
 #define RUNMODE_SERVER    0  //接收端
 #define RUNMODE_CLIENT    1  //发送端
+
+int InitSocketBuffer()
+{
+    /* 
+     * 先读取缓冲区设置的情况 
+     * 获得原始发送缓冲区大小 
+     */ 
+    int err = -1;        /* 返回值 */ 
+    int snd_size = 0;   /* 发送缓冲区大小 */ 
+    int rcv_size = 0;    /* 接收缓冲区大小 */ 
+    socklen_t optlen;    /* 选项值长度 */ 
+    optlen = sizeof(snd_size); 
+    err = getsockopt(fdsocket, SOL_SOCKET, SO_SNDBUF,&snd_size, &optlen); 
+
+    if(err<0){ 
+        printf("获取发送缓冲区大小错误\n"); 
+    }   
+    else
+    {
+        printf("send buffer size=%d\n", snd_size);
+    } 
+
+
+    err = getsockopt(fdsocket, SOL_SOCKET, SO_RCVBUF,&snd_size, &optlen); 
+
+    if(err<0){ 
+        printf("获取发送缓冲区大小错误\n"); 
+    }   
+    else
+    {
+        printf("recv buffer size=%d\n", snd_size);
+    } 
+
+
+    //-------------------------------------------------------------------
+    //-------------------------------------------------------------------
+    /* 
+     * 设置接收缓冲区大小 
+     */ 
+    rcv_size = 1*1024*1024;    /* 接收缓冲区大小为8K */ 
+    optlen = sizeof(rcv_size); 
+    err = setsockopt(fdsocket,SOL_SOCKET,SO_RCVBUF, (char *)&rcv_size, optlen); 
+    if(err<0){ 
+        printf("设置接收缓冲区大小错误\n"); 
+    } 
+ 
+    /* 
+     * 检查上述缓冲区设置的情况 
+     * 获得修改后发送缓冲区大小 
+     */ 
+    snd_size = 1*1024*1024;    /* 接收缓冲区大小为8K */ 
+    optlen = sizeof(snd_size); 
+    err = setsockopt(fdsocket, SOL_SOCKET, SO_SNDBUF, (char *)&snd_size, optlen); 
+    if(err<0){ 
+        printf("获取发送缓冲区大小错误\n"); 
+    }   
+ 
+    //-------------------------------------------------------------------
+    //-------------------------------------------------------------------
+
+    err = getsockopt(fdsocket, SOL_SOCKET, SO_SNDBUF,&snd_size, &optlen); 
+
+    if(err<0){ 
+        printf("获取发送缓冲区大小错误\n"); 
+    }   
+    else
+    {
+        printf("send buffer size=%d\n", snd_size);
+    } 
+
+
+    err = getsockopt(fdsocket, SOL_SOCKET, SO_RCVBUF,&snd_size, &optlen); 
+
+    if(err<0){ 
+        printf("获取发送缓冲区大小错误\n"); 
+    }   
+    else
+    {
+        printf("recv buffer size=%d\n", snd_size);
+    } 
+}
 
 int main(int argc, char **argv)
 {
@@ -265,35 +347,8 @@ int main(int argc, char **argv)
             return -1;
     }
     
-    /* 
-     * 先读取缓冲区设置的情况 
-     * 获得原始发送缓冲区大小 
-     */ 
-    int err = -1;        /* 返回值 */ 
-    int snd_size = 0;   /* 发送缓冲区大小 */ 
-    int rcv_size = 0;    /* 接收缓冲区大小 */ 
-    socklen_t optlen;    /* 选项值长度 */ 
-    optlen = sizeof(snd_size); 
-    err = getsockopt(fdsocket, SOL_SOCKET, SO_SNDBUF,&snd_size, &optlen); 
 
-    if(err<0){ 
-        printf("获取发送缓冲区大小错误\n"); 
-    }   
-    else
-    {
-        printf("send buffer size=%d\n", snd_size);
-    } 
-
-
-    err = getsockopt(fdsocket, SOL_SOCKET, SO_RCVBUF,&snd_size, &optlen); 
-
-    if(err<0){ 
-        printf("获取发送缓冲区大小错误\n"); 
-    }   
-    else
-    {
-        printf("recv buffer size=%d\n", snd_size);
-    } 
+    InitSocketBuffer();
 
     /* 设置远程连接的信息*/
     dest_addr.sin_family = AF_INET;                 /* 注意主机字节顺序*/
