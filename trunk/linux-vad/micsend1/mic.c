@@ -191,15 +191,6 @@ void * network_recv_thread(void *p)
                 fwrite(pWriteHeader->buffer, SAMPLERATE/1000*READMSFORONCE*sizeof(short), 1, fp);
 #endif
                 traceprintf("收到数据 %d byte\n", result);
-                //printf("rNO=%d\n", pWriteHeader->FrameNO);
-                pthread_mutex_lock(&mutex_lock);
-                pWriteHeader->Valid = 1;
-                pWriteHeader->count = result;
-                n++;
-                pthread_mutex_unlock(&mutex_lock);
-                pWriteHeader = pWriteHeader->pNext;
-                sem_post(&sem_recv);
-                printf("收到%d字节\n", result);
             }
         }
     }
@@ -274,6 +265,36 @@ int main(int argc, char **argv)
             return -1;
     }
     
+    /* 
+     * 先读取缓冲区设置的情况 
+     * 获得原始发送缓冲区大小 
+     */ 
+    int err = -1;        /* 返回值 */ 
+    int snd_size = 0;   /* 发送缓冲区大小 */ 
+    int rcv_size = 0;    /* 接收缓冲区大小 */ 
+    socklen_t optlen;    /* 选项值长度 */ 
+    optlen = sizeof(snd_size); 
+    err = getsockopt(fdsocket, SOL_SOCKET, SO_SNDBUF,&snd_size, &optlen); 
+
+    if(err<0){ 
+        printf("获取发送缓冲区大小错误\n"); 
+    }   
+    else
+    {
+        printf("send buffer size=%d\n", snd_size);
+    } 
+
+
+    err = getsockopt(fdsocket, SOL_SOCKET, SO_RCVBUF,&snd_size, &optlen); 
+
+    if(err<0){ 
+        printf("获取发送缓冲区大小错误\n"); 
+    }   
+    else
+    {
+        printf("recv buffer size=%d\n", snd_size);
+    } 
+
     /* 设置远程连接的信息*/
     dest_addr.sin_family = AF_INET;                 /* 注意主机字节顺序*/
     dest_addr.sin_port = htons(serverport);          /* 远程连接端口, 注意网络字节顺序*/
