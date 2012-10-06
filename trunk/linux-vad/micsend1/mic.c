@@ -38,6 +38,9 @@ char serverip[15];
 int  serverport;
 
 int FrameNO = 0; //包序号
+
+struct sockaddr_in dest_addr;
+
 //音频采集线程
 void * capture_audio_thread(void *para)
 {
@@ -103,7 +106,6 @@ void remove_capture_audio(void)
 
 void * network_send_thread(void *p)
 {
-    struct sockaddr_in dest_addr;
     socklen_t socklen;
 #if TRAN_MODE==UDP_MODE
     int fdsocket = socket(AF_INET, SOCK_DGRAM, 0);
@@ -178,6 +180,7 @@ void remove_network_send()
     pthread_cancel(thread_network_send);  
 }
 
+#if 0
 void * network_recv_thread(void *p)
 {
     struct sockaddr_in local_addr, remote_addr;
@@ -374,7 +377,7 @@ void remove_play_audio(void)
     usleep(40*1000);
     pthread_cancel(thread_play_audio);
 }
-
+#endif
 #define RUNMODE_SERVER    0  //接收端
 #define RUNMODE_CLIENT    1  //发送端
 
@@ -455,6 +458,7 @@ int main(int argc, char **argv)
         //pthread_join(thread_capture_audio, NULL);
         //pthread_join(thread_network_send, NULL);
     }
+#if 0
     else if(runmode == RUNMODE_SERVER)
     {
         result = sem_init(&sem_recv, 0, 0);
@@ -469,7 +473,7 @@ int main(int argc, char **argv)
         //pthread_join(thread_play_audio, NULL);
         //pthread_join(thread_network_recv, NULL);
     }
-
+#endif
     while(programrun)
     {
         usleep(1000);
@@ -494,11 +498,13 @@ int main(int argc, char **argv)
             remove_capture_audio();
             remove_network_send();
     }
+#if 0
     else if(runmode == RUNMODE_SERVER)
     {
         printf("清除发送线程\n");
         remove_play_audio();
         remove_network_recv();
     }
+#endif
 }
 
