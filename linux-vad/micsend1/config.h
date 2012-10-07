@@ -18,8 +18,8 @@
 #define TRAN_MODE     UDP_MODE
 #define BUFFERNODECOUNT       1024 //链表节点个数
 
-#define RECORD_CAPTURE_PCM         0
-#define RECORD_SEND_PCM            0
+#define RECORD_CAPTURE_PCM         1
+#define RECORD_SEND_PCM            1
 #define RECORD_RECV_PCM            0
 #define RECORD_PLAY_PCM            0
 
