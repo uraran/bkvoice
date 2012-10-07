@@ -38,16 +38,10 @@ char serverip[15];
 int  serverport;
 
 int FrameNO = 0; //包序号
-
-int fdsocket;
-struct sockaddr_in dest_addr;
-struct sockaddr_in local_addr;
-
 //音频采集线程
 void * capture_audio_thread(void *para)
 {
     int fdsound = 0;
-    int readbyte = 0;
 #if RECORD_CAPTURE_PCM
     FILE *fp = fopen("capture.pcm", "wb");
 #endif
@@ -67,14 +61,14 @@ void * capture_audio_thread(void *para)
 
     while(flag_capture_audio)
     {
-        if((readbyte=read(fdsound, pWriteHeader->buffer, SAMPLERATE/1000*READMSFORONCE*sizeof(short))) < 0)
+        if(read(fdsound, pWriteHeader->buffer, SAMPLERATE/1000*READMSFORONCE) < 0)
         {
             perror("读声卡数据");
         }
         else
         {
             sem_post(&sem_capture);
-            //printf("readbyte=%d\n", readbyte);
+
 #if RECORD_CAPTURE_PCM
             fwrite(pWriteHeader->buffer, SAMPLERATE/1000*READMSFORONCE*sizeof(short), 1, fp);
 #endif
@@ -108,9 +102,34 @@ void remove_capture_audio(void)
 
 void * network_send_thread(void *p)
 {
+    struct sockaddr_in dest_addr;
     socklen_t socklen;
-    printf("数据发送开始\n");
+#if TRAN_MODE==UDP_MODE
+    int fdsocket = socket(AF_INET, SOCK_DGRAM, 0);
+#elif TRAN_MODE==TCP_MODE
+    int fdsocket = socket(AF_INET, SOCK_STREAM, 0);
+#endif    
+    if (fdsocket == -1) 
+    {
+        perror("socket");
+        return;
+    }
+    
+    /* 设置远程连接的信息*/
+    dest_addr.sin_family = AF_INET;                 /* 注意主机字节顺序*/
+    dest_addr.sin_port = htons(serverport);          /* 远程连接端口, 注意网络字节顺序*/
+    dest_addr.sin_addr.s_addr = inet_addr(serverip); /* 远程 IP 地址, inet_addr() 会返回网络字节顺序*/
+    bzero(&(dest_addr.sin_zero), 8);                /* 其余结构须置 0*/    
+
     socklen = sizeof(struct sockaddr);
+#if TRAN_MODE==TCP_MODE
+    if(connect(fdsocket, (struct sockaddr*)&dest_addr, socklen) == -1)
+    {
+        perror("connect");
+        return;
+    }
+#endif
+    printf("数据发送开始\n");
     while(flag_network_send)
     {
         sem_wait(&sem_capture);//等待采集线程有数据
@@ -124,7 +143,7 @@ void * network_send_thread(void *p)
                     continue;
                 }
 #if TRAN_MODE==UDP_MODE
-                if(-1 == sendto(fdsocket, pReadHeader->buffer, sizeof(pReadHeader->buffer)+sizeof(int)+sizeof(int), 0, (struct sockaddr*)&dest_addr, socklen))
+                if(-1 == sendto(fdsocket, pReadHeader->buffer, sizeof(pReadHeader->buffer)+sizeof(int), 0, (struct sockaddr*)&dest_addr, socklen))
 #elif TRAN_MODE==TCP_MODE
                 if(-1 == send(fdsocket, pReadHeader->buffer, sizeof(pReadHeader->buffer), 0))
 #endif
@@ -160,9 +179,10 @@ void remove_network_send()
 
 void * network_recv_thread(void *p)
 {
-    struct sockaddr_in remote_addr;
+    struct sockaddr_in local_addr, remote_addr;
     int result;
     int socklen;
+    int fdsocket;
 #if RECORD_RECV_PCM 
     FILE * fp = fopen("recv.pcm", "wb");
     if(!fp)
@@ -171,26 +191,87 @@ void * network_recv_thread(void *p)
     }
 #endif
     
+#if TRAN_MODE==UDP_MODE
+    fdsocket = socket(AF_INET, SOCK_DGRAM, 0);
+#elif TRAN_MODE==TCP_MODE
+    fdsocket = socket(AF_INET, SOCK_STREAM, 0);//建立可靠tcp socket
+#endif
+    if (fdsocket == -1) 
+    {
+        perror("socket");
+        return;
+    }
+    
+    /* 设置远程连接的信息*/
+    local_addr.sin_family = AF_INET;                 /* 注意主机字节顺序*/
+    local_addr.sin_port = htons(8302);          /* 远程连接端口, 注意网络字节顺序*/
+    local_addr.sin_addr.s_addr = htonl(INADDR_ANY); /* 远程 IP 地址, inet_addr() 会返回网络字节顺序*/
+    //bzero(&(local_addr.sin_zero), 8);                /* 其余结构须置 0*/    
+    
+    if(bind(fdsocket, (struct sockaddr*)&local_addr, sizeof(struct sockaddr)) == -1)
+    {
+        perror("绑定错误");
+    }
+    
+#if TRAN_MODE==UDP_MODE
+#elif TRAN_MODE==TCP_MODE
+    struct sockaddr_in their_addr;/*connector'saddressinformation*/
+    int sin_size;
+    sin_size=sizeof(struct sockaddr_in);
+
+    if(listen(fdsocket, 5)==-1)
+    {
+        perror("listen");
+        return;
+    }
+
+    int connectsocket;
+    if((connectsocket = accept(fdsocket, (struct sockaddr *)&their_addr, &sin_size)) == -1)
+    {
+        perror("accept");
+        return;
+    }
+
+
+#endif
+
     printf("数据接收开始\n");
     socklen = sizeof(struct sockaddr);
     while(flag_network_recv)
     {
-        printf("recv\n");
         {      
-            result = recvfrom(fdsocket, pWriteHeader->buffer, sizeof(pWriteHeader->buffer)+sizeof(int)+sizeof(int), 
-                0, (struct sockaddr*)&remote_addr, &socklen);
-
+#if TRAN_MODE==UDP_MODE
+            //if(-1 == sendto(fdsocket, pReadHeader->buffer, sizeof(pReadHeader->buffer), 0, (struct sockaddr*)&dest_addr, sizeof(struct sockaddr)))
+            result = recvfrom(fdsocket, pWriteHeader->buffer, sizeof(pWriteHeader->buffer)+sizeof(int)+sizeof(int), 0, (struct sockaddr*)&remote_addr, &socklen);
+#elif TRAN_MODE==TCP_MODE
+            result = recv(connectsocket, pWriteHeader->buffer, sizeof(pWriteHeader->buffer), 0);
+#endif
             if(result == -1)
             {
                     perror("data recv");
                     return;
             }
+#if 0
+            else if (result != sizeof(pWriteHeader->buffer)+sizeof(int))
+            {
+                    printf("不足%d字节\n", sizeof(pWriteHeader->buffer)+sizeof(int));
+            }
+#endif
             else
             {
 #if RECORD_RECV_PCM 
                 fwrite(pWriteHeader->buffer, SAMPLERATE/1000*READMSFORONCE*sizeof(short), 1, fp);
 #endif
                 traceprintf("收到数据 %d byte\n", result);
+                //printf("rNO=%d\n", pWriteHeader->FrameNO);
+                pthread_mutex_lock(&mutex_lock);
+                pWriteHeader->Valid = 1;
+                pWriteHeader->count = SAMPLERATE/1000*READMSFORONCE*sizeof(short);
+                n++;
+                pthread_mutex_unlock(&mutex_lock);
+                pWriteHeader = pWriteHeader->pNext;
+                sem_post(&sem_recv);
+                printf("收到%d字节\n", result);
             }
         }
     }
@@ -204,92 +285,98 @@ void * network_recv_thread(void *p)
 //清除接收线程
 void remove_network_recv()
 {
+}
 
+//音频播放线程
+void * play_audio_thread(void *para)
+{
+    int fdsoundplay = 0;
+    struct timeval tv;
+    struct timezone tz;
+    time_t timep;
+    struct tm *p;
+#if RECORD_PLAY_PCM 
+    FILE * fp = fopen("play.pcm", "wb");
+    if(!fp)
+    {
+        perror("open file");
+    }
+#endif
+    unsigned int t_ms;
+
+    fdsoundplay = open("/dev/dsp", O_WRONLY);/*只写方式打开设备*/
+    if(fdsoundplay<0)
+    {
+       perror("以只写方式打开音频设备");
+       return;
+    }
+
+
+    printf("设置写音频设备参数 setup play audio device parament\n");
+    ioctl(fdsoundplay, SNDCTL_DSP_SPEED, &Frequency);//采样频率
+    ioctl(fdsoundplay, SNDCTL_DSP_SETFMT, &format);//音频设备位宽
+    ioctl(fdsoundplay, SNDCTL_DSP_CHANNELS, &channels);//音频设备通道
+    ioctl(fdsoundplay, SNDCTL_DSP_SETFRAGMENT, &setting);//采样缓冲区
+
+    while(flag_play_audio)
+    {
+        sem_wait(&sem_recv);
+        if(n > BUFFER_COUNT)
+        {
+            if(!pReadHeader->Valid)
+            { 
+                printf("忽略%d\n", pReadHeader->FrameNO);
+                continue;
+            }
+#if 0
+            time(&timep);
+            p=localtime(&timep);   //get server's time
+
+            printf("%d\n", p->tm_msec);
+#endif
+
+#if 0
+            gettimeofday(&tv, &tz);
+            t_ms = tv.tv_sec*1000 + tv.tv_usec/1000;
+            printf("%d,%d,", tv.tv_sec, tv.tv_usec);
+#endif
+
+            if(write(fdsoundplay, pReadHeader->buffer, pReadHeader->count) < 0)
+            {    
+                perror("音频设备写错误\n");
+            }
+            else
+            {
+                pthread_mutex_lock(&mutex_lock);
+                pReadHeader->Valid = 0;
+                n--;
+                pthread_mutex_unlock(&mutex_lock);
+
+#if RECORD_PLAY_PCM 
+                fwrite(pReadHeader->buffer, pReadHeader->count, 1, fp);
+#endif
+                pReadHeader = pReadHeader->pNext;
+            }
+        }
+        //fwrite(buffer, sizeof(buffer), 1, fprecord);
+    }
+
+    close(fdsoundplay);
+    printf("音频播放线程已经关闭 audio play thread is closed\n");
+    return NULL;
+}
+
+//清除音频播放线程
+void remove_play_audio(void)
+{
+    sem_post(&sem_recv);
+    flag_play_audio = 0;
+    usleep(40*1000);
+    pthread_cancel(thread_play_audio);
 }
 
 #define RUNMODE_SERVER    0  //接收端
 #define RUNMODE_CLIENT    1  //发送端
-
-int InitSocketBuffer()
-{
-    /* 
-     * 先读取缓冲区设置的情况 
-     * 获得原始发送缓冲区大小 
-     */ 
-    int err = -1;        /* 返回值 */ 
-    int snd_size = 0;   /* 发送缓冲区大小 */ 
-    int rcv_size = 0;    /* 接收缓冲区大小 */ 
-    socklen_t optlen;    /* 选项值长度 */ 
-    optlen = sizeof(snd_size); 
-    err = getsockopt(fdsocket, SOL_SOCKET, SO_SNDBUF,&snd_size, &optlen); 
-
-    if(err<0){ 
-        printf("获取发送缓冲区大小错误\n"); 
-    }   
-    else
-    {
-        printf("send buffer size=%d\n", snd_size);
-    } 
-
-
-    err = getsockopt(fdsocket, SOL_SOCKET, SO_RCVBUF,&snd_size, &optlen); 
-
-    if(err<0){ 
-        printf("获取发送缓冲区大小错误\n"); 
-    }   
-    else
-    {
-        printf("recv buffer size=%d\n", snd_size);
-    } 
-
-
-    //-------------------------------------------------------------------
-    //-------------------------------------------------------------------
-    /* 
-     * 设置接收缓冲区大小 
-     */ 
-    rcv_size = 1*1024*1024;    /* 接收缓冲区大小为8K */ 
-    optlen = sizeof(rcv_size); 
-    err = setsockopt(fdsocket,SOL_SOCKET,SO_RCVBUF, (char *)&rcv_size, optlen); 
-    if(err<0){ 
-        printf("设置接收缓冲区大小错误\n"); 
-    } 
- 
-    /* 
-     * 检查上述缓冲区设置的情况 
-     * 获得修改后发送缓冲区大小 
-     */ 
-    snd_size = 1*1024*1024;    /* 接收缓冲区大小为8K */ 
-    optlen = sizeof(snd_size); 
-    err = setsockopt(fdsocket, SOL_SOCKET, SO_SNDBUF, (char *)&snd_size, optlen); 
-    if(err<0){ 
-        printf("获取发送缓冲区大小错误\n"); 
-    }   
- 
-    //-------------------------------------------------------------------
-    //-------------------------------------------------------------------
-
-    err = getsockopt(fdsocket, SOL_SOCKET, SO_SNDBUF,&snd_size, &optlen); 
-
-    if(err<0){ 
-        printf("获取发送缓冲区大小错误\n"); 
-    }   
-    else
-    {
-        printf("send buffer size=%d\n", snd_size);
-    } 
-
-
-    err = getsockopt(fdsocket, SOL_SOCKET, SO_RCVBUF,&snd_size, &optlen); 
-
-    if(err<0){ 
-        printf("获取发送缓冲区大小错误\n"); 
-    }   
-    else
-    {
-        printf("recv buffer size=%d\n", snd_size);
-    } 
-}
 
 int main(int argc, char **argv)
 {
@@ -298,7 +385,6 @@ int main(int argc, char **argv)
     FILE *fprecord = NULL;
     int i;
     int  iret1, iret2, result;
-    socklen_t socklen;
     
     if(argc <= 1)
     {
@@ -310,17 +396,6 @@ int main(int argc, char **argv)
 
     if(strcmp("capture", argv[1])==0)
     {
-#if TRAN_MODE==UDP_MODE
-    fdsocket = socket(AF_INET, SOCK_DGRAM, 0);
-#elif TRAN_MODE==TCP_MODE
-    fdsocket = socket(AF_INET, SOCK_STREAM, 0);
-#endif    
-    if (fdsocket == -1) 
-    {
-        perror("socket");
-        return;
-    }
-    
         printf("客户端模式\n");
         runmode = RUNMODE_CLIENT;
         if(argc != 4)
@@ -347,36 +422,7 @@ int main(int argc, char **argv)
             return -1;
     }
     
-
-    InitSocketBuffer();
-
-    /* 设置远程连接的信息*/
-    dest_addr.sin_family = AF_INET;                 /* 注意主机字节顺序*/
-    dest_addr.sin_port = htons(serverport);          /* 远程连接端口, 注意网络字节顺序*/
-    dest_addr.sin_addr.s_addr = inet_addr(serverip); /* 远程 IP 地址, inet_addr() 会返回网络字节顺序*/
-    bzero(&(dest_addr.sin_zero), 8);                /* 其余结构须置 0*/    
-
-    //绑定本地端口
-    local_addr.sin_family = AF_INET;                 /* 注意主机字节顺序*/
-    local_addr.sin_port = htons(serverport);          /* 远程连接端口, 注意网络字节顺序*/
-    local_addr.sin_addr.s_addr = INADDR_ANY; /* 远程 IP 地址, inet_addr() 会返回网络字节顺序*/
-    bzero(&(local_addr.sin_zero), 8);                /* 其余结构须置 0*/    
-
-
-    if(bind(fdsocket, (struct sockaddr*)&local_addr, sizeof(struct sockaddr)) == -1)
-    {
-        perror("绑定错误");
-    }
     
-    socklen = sizeof(struct sockaddr);
-#if TRAN_MODE==TCP_MODE
-    if(connect(fdsocket, (struct sockaddr*)&dest_addr, socklen) == -1)
-    {
-        perror("connect");
-        return;
-    }
-#endif
-
     for(i=0;i<BUFFERNODECOUNT-1;i++)
     {
         audiobuffer[i].pNext = &audiobuffer[i+1];
@@ -406,12 +452,9 @@ int main(int argc, char **argv)
         printf("创建发送与采集线程\n");
             iret1 = pthread_create(&thread_capture_audio, NULL, capture_audio_thread, (void*) NULL);
             iret1 = pthread_create(&thread_network_send, NULL, network_send_thread, (void*) NULL);
-            
-            iret1 = pthread_create(&thread_network_recv, NULL, network_recv_thread, (void*) NULL);
         //pthread_join(thread_capture_audio, NULL);
         //pthread_join(thread_network_send, NULL);
     }
-#if 0
     else if(runmode == RUNMODE_SERVER)
     {
         result = sem_init(&sem_recv, 0, 0);
@@ -421,12 +464,12 @@ int main(int argc, char **argv)
         }
 
         printf("创建播放与接收线程\n");
-            iret2 = pthread_create(&thread_play_audio, NULL, play_audio_thread, (void*) NULL);  
-            iret2 = pthread_create(&thread_network_recv, NULL, network_recv_thread, (void*) NULL);    
+        iret2 = pthread_create(&thread_play_audio, NULL, play_audio_thread, (void*) NULL);  
+        iret2 = pthread_create(&thread_network_recv, NULL, network_recv_thread, (void*) NULL);    
         //pthread_join(thread_play_audio, NULL);
         //pthread_join(thread_network_recv, NULL);
     }
-#endif
+
     while(programrun)
     {
         usleep(1000);
@@ -451,13 +494,10 @@ int main(int argc, char **argv)
             remove_capture_audio();
             remove_network_send();
     }
-#if 0
     else if(runmode == RUNMODE_SERVER)
     {
         printf("清除发送线程\n");
         remove_play_audio();
         remove_network_recv();
     }
-#endif
 }
-

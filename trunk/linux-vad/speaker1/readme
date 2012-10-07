@@ -1,0 +1,7 @@
+only a mic test,
+only udp send
+
+仅仅是一个mic采集,udp发送的演示程序
+
+make CROSS_COMPILE=/usr/local/arm-linux-gcc-4.4.3/bin/arm-linux-
+
