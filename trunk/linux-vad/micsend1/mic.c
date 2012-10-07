@@ -81,7 +81,7 @@ void * capture_audio_thread(void *para)
             traceprintf("发送信号量 sem_capture\n");
             
             pWriteHeader->FrameNO = FrameNO++;
-            printf("cNO:%d\n", pWriteHeader->FrameNO);
+            printf("cNO:%d, readbyte=%d\n", pWriteHeader->FrameNO, readbyte);
             pthread_mutex_lock(&mutex_lock);
             n++;
             pWriteHeader->Valid = 1;

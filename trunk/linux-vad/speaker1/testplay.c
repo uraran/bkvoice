@@ -37,15 +37,18 @@ int main(void)
         printf("打开文件错误\n");
     }
 
+    int recing = 1;
+
     while(!feof(fppcm))
     {
         fread(buffer, 512, 1, fppcm);
-        write(fdsoundplay, buffer, 512);
+        status = write(fdsoundplay, buffer, 512);
+        printf("status=%d\n", status);
         /* wait for playback to complete before recording again */
         //status = ioctl(fdsoundplay, SOUND_PCM_SYNC, 0); 
-
         if (status == -1)
           perror("SOUND_PCM_SYNC ioctl failed");
+        //usleep(5*1000);
         
     }
 }

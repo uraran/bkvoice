@@ -20,7 +20,7 @@
 
 #define RECORD_CAPTURE_PCM         0
 #define RECORD_SEND_PCM            0
-#define RECORD_RECV_PCM            0
+#define RECORD_RECV_PCM            1
 #define RECORD_PLAY_PCM            1
 
 #define MAX_SEND_NO                6
