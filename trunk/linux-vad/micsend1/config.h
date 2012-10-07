@@ -43,4 +43,9 @@ typedef struct AudioBuffer
     int count;//实际有效字节数量
 } __attribute__ ((packed)) AUDIOBUFFER;
 
+
+#define SOUND_OSS                1
+#define SOUND_ALSA               2
+#define SOUND_INTERFACE          SOUND_OSS
+
 #endif

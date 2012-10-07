@@ -1,6 +1,12 @@
 #include <stdio.h>
 #include <linux/ioctl.h>
+
+#if (SOUND_INTERFACE == SOUND_OSS)
 #include <sys/soundcard.h>
+#elif (SOUND_INTERFACE == SOUND_ALSA)
+#include <alsa/asoundlib.h>
+#endif
+
 #include <fcntl.h>
 #include <pthread.h>
 #include <sys/socket.h>
@@ -21,11 +27,27 @@ int format = AFMT_S16_LE;
 int channels = 1;
 int setting = 64;//0x00040009;
 
+#if (SOUND_INTERFACE == SOUND_OSS)
 int flag_capture_audio = 0;
 int flag_play_audio    = 0;
 int flag_network_send  = 0;
 int flag_network_recv  = 0;
 int programrun = 1;     //退出程序
+#elif (SOUND_INTERFACE == SOUND_ALSA)
+/* Use the newer ALSA API */
+#define ALSA_PCM_NEW_HW_PARAMS_API
+long loops;
+int rc;
+int size;
+snd_pcm_t *handle;
+snd_pcm_hw_params_t *params;
+unsigned int val;
+int dir;
+snd_pcm_uframes_t frames;
+#if 0
+char *buffer;
+#endif
+#endif
 
 pthread_t thread_capture_audio, thread_play_audio;
 pthread_t thread_network_send,  thread_network_recv;
@@ -43,6 +65,30 @@ int fdsocket;
 struct sockaddr_in dest_addr;
 struct sockaddr_in local_addr;
 
+#if (SOUND_INTERFACE == SOUND_ALSA)
+int xrun_recovery(snd_pcm_t *handle, int err)
+{
+   if (err == -EPIPE) {    /* under-run */
+      err = snd_pcm_prepare(handle);
+   if (err < 0)
+      printf("Can't recovery from underrun, prepare failed: %s\n",
+         snd_strerror(err));
+      return 0;
+   } else if (err == -ESTRPIPE) {
+      while ((err = snd_pcm_resume(handle)) == -EAGAIN)
+         sleep(1);       /* wait until the suspend flag is released */
+         if (err < 0) {
+            err = snd_pcm_prepare(handle);
+         if (err < 0)
+            printf("Can't recovery from suspend, prepare failed: %s\n",
+              snd_strerror(err));
+      }
+      return 0;
+   }
+   return err;
+}
+#endif
+
 //音频采集线程
 void * capture_audio_thread(void *para)
 {
@@ -52,6 +98,8 @@ void * capture_audio_thread(void *para)
     FILE *fp = fopen("capture.pcm", "wb");
 #endif
 
+
+#if (SOUND_INTERFACE == SOUND_OSS)
     fdsound = open("/dev/dsp", O_RDONLY);
     if(fdsound<0)
     {
@@ -89,8 +137,88 @@ void * capture_audio_thread(void *para)
             pWriteHeader = pWriteHeader->pNext;
         }
     }
-
     close(fdsound);
+#elif (SOUND_INTERFACE == SOUND_ALSA)
+    /* Open PCM device for recording (capture). */
+    rc = snd_pcm_open(&handle, "hw:0,0", SND_PCM_STREAM_CAPTURE, 0);
+    if (rc < 0) 
+    {
+        fprintf(stderr, "unable to open pcm device: %s\n", snd_strerror(rc));
+        exit(1);
+    }
+    snd_pcm_hw_params_alloca(&params);/* Allocate a hardware parameters object. */    
+    snd_pcm_hw_params_any(handle, params);/* Fill it in with default values. */
+
+    /* Set the desired hardware parameters. */
+    snd_pcm_hw_params_set_access(handle, params, SND_PCM_ACCESS_RW_INTERLEAVED);/* Interleaved mode */
+    snd_pcm_hw_params_set_format(handle, params, SND_PCM_FORMAT_S16_LE);/* Signed 16-bit little-endian format */
+    snd_pcm_hw_params_set_channels(handle, params, CHANNELS);/* Two channels (stereo), On for mono */
+    val = SAMPLERATE;
+    snd_pcm_hw_params_set_rate_near(handle, params, &val, &dir);/* SAMPLERATE bits/second sampling rate  */
+    frames = SAMPLES_FOR_EACH_TIME;
+    snd_pcm_hw_params_set_period_size_near(handle, params, &frames, &dir);/* Set period size to SAMPLES_FOR_EACH_TIME frames. */
+
+    /* Write the parameters to the driver */
+    rc = snd_pcm_hw_params(handle, params);
+    if (rc < 0) 
+    {
+        fprintf(stderr, "unable to set hw parameters: %s\n",snd_strerror(rc));
+        exit(1);
+    }
+
+    snd_pcm_hw_params_get_period_size(params, &frames, &dir);/* Use a buffer large enough to hold one period */
+#if 0    
+    size = frames * sizeof(short) * CHANNELS; /* 2 bytes/sample, 2 channels */
+    buffer = (char *) malloc(size);
+#endif
+    snd_pcm_hw_params_get_period_time(params, &val, &dir);/* We want to loop for 5 seconds */
+                                         
+    while(flag_capture_audio)
+    {
+        rc = snd_pcm_readi(handle, &(pWriteHeader->buffer[sizeof(pk_hdr_t)]), frames);
+        if (rc == -EPIPE) 
+        {
+            /* EPIPE means overrun */
+            fprintf(stderr, "overrun occurred\n");
+            snd_pcm_prepare(handle);
+        } 
+        else if (rc < 0) 
+        {
+            fprintf(stderr, "error from read: %s\n", snd_strerror(rc));
+        } 
+        else if (rc != (int)frames) 
+        {
+            fprintf(stderr, "short read, read %d frames\n", rc);
+        }
+                       
+#if DEBUG_SAVE_CAPTURE_PCM
+        rc = fwrite(pWriteHeader->buffer, frames*sizeof(short), 1, fp);
+        if(rc != 1)
+        {
+            fprintf(stderr, "write error %d\n", rc);
+        }
+#endif 
+        sem_post(&sem_capture);                      
+        gettimeofday(&tv, &tz);
+        ((pk_hdr_t*)(pWriteHeader->buffer))->FrameNO = FrameNO++;
+        ((pk_hdr_t*)(pWriteHeader->buffer))->sec = tv.tv_sec;
+        ((pk_hdr_t*)(pWriteHeader->buffer))->usec = tv.tv_usec;
+        //printf("capture NO=%5d \n", FrameNO);
+        pthread_mutex_lock(&mutex_capture);     
+        pWriteHeader = pWriteHeader->pNext;
+        n++;                
+        pthread_mutex_unlock(&mutex_capture);  
+        
+        //traceprintf("发送信号量 sem_capture\n");
+    }
+                                         
+    snd_pcm_drain(handle);
+    snd_pcm_close(handle);
+#if 0    
+    free(buffer);
+#endif  
+#endif
+
 #if RECORD_CAPTURE_PCM
     fclose(fp);
 #endif
