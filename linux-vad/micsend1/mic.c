@@ -1,12 +1,5 @@
 #include <stdio.h>
 #include <linux/ioctl.h>
-
-#if (SOUND_INTERFACE == SOUND_OSS)
-#include <sys/soundcard.h>
-#elif (SOUND_INTERFACE == SOUND_ALSA)
-#include <alsa/asoundlib.h>
-#endif
-
 #include <fcntl.h>
 #include <pthread.h>
 #include <sys/socket.h>
@@ -17,22 +10,30 @@
 #include <sys/time.h>
 #include "config.h"
 
+#if (SOUND_INTERFACE == SOUND_OSS)
+#include <sys/soundcard.h>
+#elif (SOUND_INTERFACE == SOUND_ALSA)
+#include <alsa/asoundlib.h>
+#endif
+
 AUDIOBUFFER audiobuffer[BUFFERNODECOUNT];
 AUDIOBUFFER *pWriteHeader = NULL;
 AUDIOBUFFER *pReadHeader = NULL;
 int n = 0;//可用包数
 
+#if (SOUND_INTERFACE == SOUND_OSS)
 int Frequency = SAMPLERATE;
 int format = AFMT_S16_LE;
-int channels = 1;
+#endif
+int channels = CHANNELS;
 int setting = 64;//0x00040009;
 
-#if (SOUND_INTERFACE == SOUND_OSS)
 int flag_capture_audio = 0;
 int flag_play_audio    = 0;
 int flag_network_send  = 0;
 int flag_network_recv  = 0;
 int programrun = 1;     //退出程序
+#if (SOUND_INTERFACE == SOUND_OSS)
 #elif (SOUND_INTERFACE == SOUND_ALSA)
 /* Use the newer ALSA API */
 #define ALSA_PCM_NEW_HW_PARAMS_API
@@ -139,6 +140,8 @@ void * capture_audio_thread(void *para)
     }
     close(fdsound);
 #elif (SOUND_INTERFACE == SOUND_ALSA)
+    struct timeval tv;
+    struct timezone tz;
     /* Open PCM device for recording (capture). */
     rc = snd_pcm_open(&handle, "hw:0,0", SND_PCM_STREAM_CAPTURE, 0);
     if (rc < 0) 
@@ -155,7 +158,7 @@ void * capture_audio_thread(void *para)
     snd_pcm_hw_params_set_channels(handle, params, CHANNELS);/* Two channels (stereo), On for mono */
     val = SAMPLERATE;
     snd_pcm_hw_params_set_rate_near(handle, params, &val, &dir);/* SAMPLERATE bits/second sampling rate  */
-    frames = SAMPLES_FOR_EACH_TIME;
+    frames = SAMPLERATE/1000*READMSFORONCE;
     snd_pcm_hw_params_set_period_size_near(handle, params, &frames, &dir);/* Set period size to SAMPLES_FOR_EACH_TIME frames. */
 
     /* Write the parameters to the driver */
@@ -175,7 +178,7 @@ void * capture_audio_thread(void *para)
                                          
     while(flag_capture_audio)
     {
-        rc = snd_pcm_readi(handle, &(pWriteHeader->buffer[sizeof(pk_hdr_t)]), frames);
+        rc = snd_pcm_readi(handle, pWriteHeader->buffer, frames);
         if (rc == -EPIPE) 
         {
             /* EPIPE means overrun */
@@ -200,14 +203,14 @@ void * capture_audio_thread(void *para)
 #endif 
         sem_post(&sem_capture);                      
         gettimeofday(&tv, &tz);
-        ((pk_hdr_t*)(pWriteHeader->buffer))->FrameNO = FrameNO++;
-        ((pk_hdr_t*)(pWriteHeader->buffer))->sec = tv.tv_sec;
-        ((pk_hdr_t*)(pWriteHeader->buffer))->usec = tv.tv_usec;
+        ((AUDIOBUFFER*)(pWriteHeader->buffer))->FrameNO = FrameNO++;
+        //((AUDIOBUFFER*)(pWriteHeader->buffer))->sec = tv.tv_sec;
+        //((AUDIOBUFFER*)(pWriteHeader->buffer))->usec = tv.tv_usec;
         //printf("capture NO=%5d \n", FrameNO);
-        pthread_mutex_lock(&mutex_capture);     
+        pthread_mutex_lock(&mutex_lock);     
         pWriteHeader = pWriteHeader->pNext;
         n++;                
-        pthread_mutex_unlock(&mutex_capture);  
+        pthread_mutex_unlock(&mutex_lock);  
         
         //traceprintf("发送信号量 sem_capture\n");
     }

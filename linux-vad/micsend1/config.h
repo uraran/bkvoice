@@ -46,6 +46,7 @@ typedef struct AudioBuffer
 
 #define SOUND_OSS                1
 #define SOUND_ALSA               2
-#define SOUND_INTERFACE          SOUND_OSS
+#define SOUND_INTERFACE          SOUND_ALSA
 
+#define CHANNELS                 1
 #endif
