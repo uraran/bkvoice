@@ -2,7 +2,7 @@ CROSS_COMPILE ?=
 GCC=$(CROSS_COMPILE)gcc
 
 app:speaker.o
-	$(GCC) -o speaker speaker.o -lpthread
+	$(GCC) -o speaker speaker.o -lpthread -lasound
 	cp speaker /tftpboot
 	
 testplay:testplay.o

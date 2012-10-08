@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <linux/ioctl.h>
-#include <sys/soundcard.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <sys/socket.h>
@@ -11,15 +10,39 @@
 #include <sys/time.h>
 #include "config.h"
 
+#if (SOUND_INTERFACE == SOUND_OSS)
+#include <sys/soundcard.h>
+#elif (SOUND_INTERFACE == SOUND_ALSA)
+#include <alsa/asoundlib.h>
+#endif
+
+
 AUDIOBUFFER audiobuffer[BUFFERNODECOUNT];
 AUDIOBUFFER *pWriteHeader = NULL;
 AUDIOBUFFER *pReadHeader = NULL;
 int n = 0;//可用包数
 
+#if (SOUND_INTERFACE == SOUND_OSS)
 int Frequency = SAMPLERATE;
 int format = AFMT_S16_LE;
 int channels = 1;
 int setting = 64;//0x00040009;
+#elif (SOUND_INTERFACE == SOUND_ALSA)
+/* Use the newer ALSA API */
+#define ALSA_PCM_NEW_HW_PARAMS_API
+long loops;
+int rc;
+int size;
+snd_pcm_t *handle;
+snd_pcm_hw_params_t *params;
+unsigned int val;
+int dir;
+snd_pcm_uframes_t frames;
+#if 0
+char *buffer;
+#endif
+#endif
+
 
 int flag_capture_audio = 0;
 int flag_play_audio    = 0;
@@ -38,6 +61,8 @@ char serverip[15];
 int  serverport;
 
 int FrameNO = 0; //包序号
+
+#if 0
 //音频采集线程
 void * capture_audio_thread(void *para)
 {
@@ -176,6 +201,31 @@ void remove_network_send()
     usleep(40*1000);
     pthread_cancel(thread_network_send);  
 }
+#endif
+
+#if (SOUND_INTERFACE == SOUND_ALSA)
+int xrun_recovery(snd_pcm_t *handle, int err)
+{
+   if (err == -EPIPE) {    /* under-run */
+      err = snd_pcm_prepare(handle);
+   if (err < 0)
+      printf("Can't recovery from underrun, prepare failed: %s\n",
+         snd_strerror(err));
+      return 0;
+   } else if (err == -ESTRPIPE) {
+      while ((err = snd_pcm_resume(handle)) == -EAGAIN)
+         sleep(1);       /* wait until the suspend flag is released */
+         if (err < 0) {
+            err = snd_pcm_prepare(handle);
+         if (err < 0)
+            printf("Can't recovery from suspend, prepare failed: %s\n",
+              snd_strerror(err));
+      }
+      return 0;
+   }
+   return err;
+}
+#endif
 
 void * network_recv_thread(void *p)
 {
@@ -303,7 +353,8 @@ void * play_audio_thread(void *para)
     }
 #endif
     unsigned int t_ms;
-
+    
+#if (SOUND_INTERFACE == SOUND_OSS)
     fdsoundplay = open("/dev/dsp", O_WRONLY);/*只写方式打开设备*/
     if(fdsoundplay<0)
     {
@@ -362,6 +413,124 @@ void * play_audio_thread(void *para)
     }
 
     close(fdsoundplay);
+#elif (SOUND_INTERFACE == SOUND_ALSA)
+    /* Open PCM device for playback. */
+    rc = snd_pcm_open(&handle, "plughw:0,0", 
+                    SND_PCM_STREAM_PLAYBACK, 0);
+    if (rc < 0) {
+    fprintf(stderr, 
+            "unable to open pcm device: %s\n",
+            snd_strerror(rc));
+    exit(1);
+    }
+
+    /* Allocate a hardware parameters object. */
+    snd_pcm_hw_params_alloca(&params);
+
+    /* Fill it in with default values. */
+    snd_pcm_hw_params_any(handle, params);
+
+    /* Set the desired hardware parameters. */
+
+    /* Interleaved mode */
+    snd_pcm_hw_params_set_access(handle, params,
+                      SND_PCM_ACCESS_RW_INTERLEAVED);
+
+    /* Signed 16-bit little-endian format */
+    snd_pcm_hw_params_set_format(handle, params, SND_PCM_FORMAT_S16_LE);
+
+    /* Two channels (stereo) */
+    snd_pcm_hw_params_set_channels(handle, params, CHANNELS);
+
+    /* 44100 bits/second sampling rate (CD quality) */
+    val = SAMPLERATE;
+    snd_pcm_hw_params_set_rate_near(handle, params, 
+                                  &val, &dir);
+
+    /* Set period size to 32 frames. */
+    frames = SAMPLERATE/1000*READMSFORONCE;
+    snd_pcm_hw_params_set_period_size_near(handle,
+                              params, &frames, &dir);
+
+    /* Write the parameters to the driver */
+    rc = snd_pcm_hw_params(handle, params);
+    if (rc < 0) {
+    fprintf(stderr, 
+            "unable to set hw parameters: %s\n",
+            snd_strerror(rc));
+    exit(1);
+    }
+
+    /* Use a buffer large enough to hold one period */
+    snd_pcm_hw_params_get_period_size(params, &frames,
+                                    &dir);
+#if 0                                    
+    size = frames * sizeof(short) * channels; /* 2 bytes/sample, 2 channels */
+    buffer = (char *) malloc(size);
+#endif
+    /* We want to loop for 5 seconds */
+    snd_pcm_hw_params_get_period_time(params, &val, &dir); 
+                                    
+    while(flag_play_audio)
+    {
+        sem_wait(&sem_recv);
+#if 0        
+        rc = read(0, buffer, size);
+        if (rc == 0) {
+          fprintf(stderr, "end of file on input\n");
+          break;
+        } else if (rc != size) {
+          fprintf(stderr,
+                  "short read: read %d bytes\n", rc);
+        }
+#endif        
+        //traceprintf("播放\n");
+        if(n > BUFFER_COUNT)
+        {
+            rc = snd_pcm_writei(handle, pReadHeader->buffer, frames);
+            if (rc == -EPIPE) {
+              /* EPIPE means underrun */
+              fprintf(stderr, "underrun occurred\n");
+              snd_pcm_prepare(handle);
+        } 
+        else if (rc < 0) 
+        {
+            fprintf(stderr, "error from writei: %s\n", snd_strerror(rc));
+                    
+            rc = xrun_recovery(handle, rc);             
+            if (rc < 0) 
+            {
+                printf("Write error: %s\n", snd_strerror(rc));
+                //return -1;
+            }                   
+        }  
+        else if (rc != (int)frames) 
+        {
+          fprintf(stderr, 
+                  "short write, write %d frames\n", rc);
+        } 
+
+        pthread_mutex_lock(&mutex_lock);
+        pReadHeader->Valid = 0;
+        n--;
+        pthread_mutex_unlock(&mutex_lock);
+
+#if RECORD_PLAY_PCM 
+        fwrite(pReadHeader->buffer, pReadHeader->count, 1, fp);
+#endif
+        pReadHeader = pReadHeader->pNext;
+                
+#if 0
+#if DEBUG_SAVE_PLAY_PCM
+        fwrite(pReadHeader->buffer, sizeof(pReadHeader->buffer), 1, fp);
+#endif
+        pReadHeader = pReadHeader->pNext;
+        n--;  
+#endif
+        }             
+    }                                    
+#endif
+    fclose(fp);
     printf("音频播放线程已经关闭 audio play thread is closed\n");
     return NULL;
 }
@@ -443,6 +612,7 @@ int main(int argc, char **argv)
     
     if(runmode == RUNMODE_CLIENT)
     {
+#if 0
         result = sem_init(&sem_capture, 0, 0);
         if (result != 0)
         {
@@ -450,10 +620,11 @@ int main(int argc, char **argv)
         }
 
         printf("创建发送与采集线程\n");
-            iret1 = pthread_create(&thread_capture_audio, NULL, capture_audio_thread, (void*) NULL);
-            iret1 = pthread_create(&thread_network_send, NULL, network_send_thread, (void*) NULL);
+        iret1 = pthread_create(&thread_capture_audio, NULL, capture_audio_thread, (void*) NULL);
+        iret1 = pthread_create(&thread_network_send, NULL, network_send_thread, (void*) NULL);
         //pthread_join(thread_capture_audio, NULL);
         //pthread_join(thread_network_send, NULL);
+#endif
     }
     else if(runmode == RUNMODE_SERVER)
     {
@@ -491,8 +662,10 @@ int main(int argc, char **argv)
 
     if(runmode == RUNMODE_CLIENT)
     {
+#if 0
             remove_capture_audio();
             remove_network_send();
+#endif
     }
     else if(runmode == RUNMODE_SERVER)
     {
