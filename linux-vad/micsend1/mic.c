@@ -208,10 +208,11 @@ void * capture_audio_thread(void *para)
         //((AUDIOBUFFER*)(pWriteHeader->buffer))->usec = tv.tv_usec;
         //printf("capture NO=%5d \n", FrameNO);
         pthread_mutex_lock(&mutex_lock);     
-        pWriteHeader = pWriteHeader->pNext;
+        //pWriteHeader = pWriteHeader->pNext;
+        pWriteHeader->Valid = 1;
         n++;                
         pthread_mutex_unlock(&mutex_lock);  
-        
+        pWriteHeader = pWriteHeader->pNext;
         //traceprintf("发送信号量 sem_capture\n");
     }
                                          
