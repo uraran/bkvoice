@@ -143,7 +143,7 @@ void * capture_audio_thread(void *para)
     struct timeval tv;
     struct timezone tz;
     /* Open PCM device for recording (capture). */
-    rc = snd_pcm_open(&handle, "hw:0,0", SND_PCM_STREAM_CAPTURE, 0);
+    rc = snd_pcm_open(&handle, "plughw:0,0", SND_PCM_STREAM_CAPTURE, 0);
     if (rc < 0) 
     {
         fprintf(stderr, "unable to open pcm device: %s\n", snd_strerror(rc));
@@ -193,7 +193,11 @@ void * capture_audio_thread(void *para)
         {
             fprintf(stderr, "short read, read %d frames\n", rc);
         }
-                       
+
+#if RECORD_CAPTURE_PCM
+            fwrite(pWriteHeader->buffer, SAMPLERATE/1000*READMSFORONCE*sizeof(short), 1, fp);
+#endif
+#if 0
 #if DEBUG_SAVE_CAPTURE_PCM
         rc = fwrite(pWriteHeader->buffer, frames*sizeof(short), 1, fp);
         if(rc != 1)
@@ -201,6 +205,7 @@ void * capture_audio_thread(void *para)
             fprintf(stderr, "write error %d\n", rc);
         }
 #endif 
+#endif
         sem_post(&sem_capture);                      
         gettimeofday(&tv, &tz);
         ((AUDIOBUFFER*)(pWriteHeader->buffer))->FrameNO = FrameNO++;
