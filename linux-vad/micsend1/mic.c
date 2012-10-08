@@ -245,6 +245,9 @@ void remove_capture_audio(void)
 
 void * network_send_thread(void *p)
 {
+#if RECORD_SEND_PCM
+    FILE *fp = fopen("send.pcm", "wb");
+#endif
     socklen_t socklen;
     printf("数据发送开始\n");
     socklen = sizeof(struct sockaddr);
@@ -270,6 +273,9 @@ void * network_send_thread(void *p)
                 }
                 else
                 {
+#if RECORD_SEND_PCM
+                        fwrite(pReadHeader->buffer, SAMPLERATE/1000*READMSFORONCE*sizeof(short), 1, fp);
+#endif
                         traceprintf("n=%d\n", n);
                         printf("    sNO:%d\n", pReadHeader->FrameNO);
                         pthread_mutex_lock(&mutex_lock);
@@ -284,6 +290,10 @@ void * network_send_thread(void *p)
     printf("数据发送线程已经关闭 data send thread is closed\n");
 #if TRAN_MODE==UDP_MODE
     close(fdsocket);
+#endif
+
+#if RECORD_SEND_PCM
+    fclose(fp);
 #endif
 }
 

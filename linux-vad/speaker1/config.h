@@ -9,14 +9,14 @@
 #define traceprintf
 #endif
 
-#define BUFFER_COUNT      50   //接收端缓冲区有该数量才允许播放
+#define BUFFER_COUNT      5   //接收端缓冲区有该数量才允许播放
 #define SAMPLERATE     16000 //定义采样率
 #define READMSFORONCE    16 //采样周期(ms)
 
 #define UDP_MODE      0
 #define TCP_MODE      1
 #define TRAN_MODE     UDP_MODE
-#define BUFFERNODECOUNT       1024 //链表节点个数
+#define BUFFERNODECOUNT       4096 //链表节点个数
 
 #define RECORD_CAPTURE_PCM         0
 #define RECORD_SEND_PCM            0
@@ -50,4 +50,6 @@ typedef struct AudioBuffer
 
 #define CHANNELS                 1
 
+
+#define VAD_ENABLED              0
 #endif

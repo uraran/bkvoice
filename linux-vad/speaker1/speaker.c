@@ -9,7 +9,7 @@
 #include <semaphore.h>
 #include <sys/time.h>
 #include "config.h"
-
+#include "wb_vad.h"
 #if (SOUND_INTERFACE == SOUND_OSS)
 #include <sys/soundcard.h>
 #elif (SOUND_INTERFACE == SOUND_ALSA)
@@ -313,7 +313,7 @@ void * network_recv_thread(void *p)
                 fwrite(pWriteHeader->buffer, SAMPLERATE/1000*READMSFORONCE*sizeof(short), 1, fp);
 #endif
                 traceprintf("收到数据 %d byte\n", result);
-                //printf("rNO=%d\n", pWriteHeader->FrameNO);
+                printf("rNO=%d\n", pWriteHeader->FrameNO);
                 pthread_mutex_lock(&mutex_lock);
                 pWriteHeader->Valid = 1;
                 pWriteHeader->count = SAMPLERATE/1000*READMSFORONCE*sizeof(short);
@@ -321,7 +321,7 @@ void * network_recv_thread(void *p)
                 pthread_mutex_unlock(&mutex_lock);
                 pWriteHeader = pWriteHeader->pNext;
                 sem_post(&sem_recv);
-                printf("收到%d字节\n", result);
+                //printf("收到%d字节\n", result);
             }
         }
     }
@@ -345,6 +345,19 @@ void * play_audio_thread(void *para)
     struct timezone tz;
     time_t timep;
     struct tm *p;
+#if VAD_ENABLED
+  	VadVars *vadstate;
+  	int vad;
+  	int nZeroPackageCount;
+    float indata[256];
+    int i;
+#endif
+
+
+#if VAD_ENABLED
+  	wb_vad_init(&(vadstate));
+#endif
+
 #if RECORD_PLAY_PCM 
     FILE * fp = fopen("play.pcm", "wb");
     if(!fp)
@@ -399,7 +412,7 @@ void * play_audio_thread(void *para)
             else
             {
                 pthread_mutex_lock(&mutex_lock);
-                pReadHeader->Valid = 0;
+                pReadHeader->Valid = 0;//数据已播放，不再有效
                 n--;
                 pthread_mutex_unlock(&mutex_lock);
 
@@ -508,10 +521,55 @@ void * play_audio_thread(void *para)
         {
           fprintf(stderr, 
                   "short write, write %d frames\n", rc);
-        } 
+        }
 
+ 
+
+
+
+#if VAD_ENABLED
+        signed short * precdata = (signed short*)(&(pReadHeader->buffer[0]));
+
+				for(i=0;i<256;i++)		//??????
+				{
+						indata[i]= (float)(precdata[i]);
+				}
+  			vad = wb_vad(vadstate,indata);	//??vad??
+				//vad =1;//
+        printf("vad=%d\n", vad);
+				if(vad == 1)
+				{
+					nZeroPackageCount = 0;
+				}
+				else
+				{
+					nZeroPackageCount++;
+				}
+#endif
+
+
+
+
+#if VAD_ENABLED
+			if((vad==0) && (nZeroPackageCount > 30))
+			{
+				printf("z=%d\n", nZeroPackageCount);
+				nZeroPackageCount = 0;
+#if 1
+				while(pReadHeader != pWriteHeader)
+				{
+					pReadHeader->Valid = 0;//因为是跳过的数据包//数据已播放，不再有效
+					pReadHeader = pReadHeader->pNext;
+				}
+#endif
+				//当前面有5个静音包，则略过
+			}
+			else
+#endif
+      {
+        printf("          pNO=%d\n", pReadHeader->FrameNO);
         pthread_mutex_lock(&mutex_lock);
-        pReadHeader->Valid = 0;
+        pReadHeader->Valid = 0;//数据已播放，不再有效
         n--;
         pthread_mutex_unlock(&mutex_lock);
 
@@ -519,6 +577,7 @@ void * play_audio_thread(void *para)
         fwrite(pReadHeader->buffer, pReadHeader->count, 1, fp);
 #endif
         pReadHeader = pReadHeader->pNext;
+      }
                 
 #if 0
 #if DEBUG_SAVE_PLAY_PCM
