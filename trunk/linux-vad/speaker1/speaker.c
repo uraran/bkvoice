@@ -555,7 +555,6 @@ void * play_audio_thread(void *para)
 			{
 				//printf("z=%d\n", nZeroPackageCount);
 				nZeroPackageCount = 0;
-#if 1
 				while(pReadHeader->pNext != pWriteHeader)
 				{
 				    printf("略过数据包 %d,n=%d\n", pReadHeader->FrameNO, n);
@@ -565,12 +564,6 @@ void * play_audio_thread(void *para)
             n--;
 					  pReadHeader = pReadHeader->pNext;
             pthread_mutex_unlock(&mutex_lock);
-#if 0
-					  if(pReadHeader->pPrior == )
-					  {
-					      
-					  }
-#endif
 				}
 			}
 			else
@@ -598,6 +591,7 @@ void * play_audio_thread(void *para)
         }             
     }                                    
 #endif
+
     fclose(fp);
     printf("音频播放线程已经关闭 audio play thread is closed\n");
     return NULL;
@@ -748,5 +742,4 @@ int main(int argc, char **argv)
         remove_network_recv();
     }
 }
-#endif
-				//当前面有5个静音包，则略过
+
