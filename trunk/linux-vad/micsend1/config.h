@@ -9,9 +9,9 @@
 #define traceprintf
 #endif
 
-#define BUFFER_COUNT      3   //接收端缓冲区有该数量才允许播放
+#define BUFFER_COUNT      10   //接收端缓冲区有该数量才允许播放
 #define SAMPLERATE     16000 //定义采样率
-#define READMSFORONCE    16 //采样周期(ms)
+#define READMSFORONCE      4 //采样周期(ms)
 
 #define UDP_MODE      0
 #define TCP_MODE      1

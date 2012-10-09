@@ -233,6 +233,10 @@ void * network_recv_thread(void *p)
     int result;
     int socklen;
     int fdsocket;
+#if READFILE_SIMULATE_RCV
+    FILE *fptest = fopen("play.pcm", "rb");
+#endif
+
 #if RECORD_RECV_PCM 
     FILE * fp = fopen("recv.pcm", "wb");
     if(!fp)
@@ -291,8 +295,17 @@ void * network_recv_thread(void *p)
     {
         {      
 #if TRAN_MODE==UDP_MODE
-            //if(-1 == sendto(fdsocket, pReadHeader->buffer, sizeof(pReadHeader->buffer), 0, (struct sockaddr*)&dest_addr, sizeof(struct sockaddr)))
+#if READFILE_SIMULATE_RCV
+            if(feof(fptest))
+            {
+                fseek(fptest, 0L, SEEK_SET);
+            }
+            pWriteHeader->FrameNO++;
+            fread(pWriteHeader->buffer, sizeof(pWriteHeader->buffer), 1, fptest);
+            result = 520;
+#else
             result = recvfrom(fdsocket, pWriteHeader->buffer, sizeof(pWriteHeader->buffer)+sizeof(int)+sizeof(int), 0, (struct sockaddr*)&remote_addr, &socklen);
+#endif
 #elif TRAN_MODE==TCP_MODE
             result = recv(connectsocket, pWriteHeader->buffer, sizeof(pWriteHeader->buffer), 0);
 #endif
@@ -314,13 +327,18 @@ void * network_recv_thread(void *p)
 #endif
                 traceprintf("收到数据 %d byte\n", result);
                 printf("rNO=%d\n", pWriteHeader->FrameNO);
+                pWriteHeader->count = SAMPLERATE/1000*READMSFORONCE*sizeof(short);
                 pthread_mutex_lock(&mutex_lock);
                 pWriteHeader->Valid = 1;
-                pWriteHeader->count = SAMPLERATE/1000*READMSFORONCE*sizeof(short);
                 n++;
                 pthread_mutex_unlock(&mutex_lock);
                 pWriteHeader = pWriteHeader->pNext;
                 sem_post(&sem_recv);
+#if READFILE_SIMULATE_RCV
+                usleep(14*1000);
+#endif
+                //sem_post(&sem_recv);
+                //sem_post(&sem_recv);
                 //printf("收到%d字节\n", result);
             }
         }
@@ -428,13 +446,13 @@ void * play_audio_thread(void *para)
     close(fdsoundplay);
 #elif (SOUND_INTERFACE == SOUND_ALSA)
     /* Open PCM device for playback. */
-    rc = snd_pcm_open(&handle, "plughw:0,0", 
-                    SND_PCM_STREAM_PLAYBACK, 0);
-    if (rc < 0) {
-    fprintf(stderr, 
-            "unable to open pcm device: %s\n",
+    rc = snd_pcm_open(&handle, "plughw:0,0", SND_PCM_STREAM_PLAYBACK, 0);
+
+    if (rc < 0) 
+    {
+        fprintf(stderr,  "unable to open pcm device: %s\n",
             snd_strerror(rc));
-    exit(1);
+        exit(1);
     }
 
     /* Allocate a hardware parameters object. */
@@ -446,8 +464,7 @@ void * play_audio_thread(void *para)
     /* Set the desired hardware parameters. */
 
     /* Interleaved mode */
-    snd_pcm_hw_params_set_access(handle, params,
-                      SND_PCM_ACCESS_RW_INTERLEAVED);
+    snd_pcm_hw_params_set_access(handle, params, SND_PCM_ACCESS_RW_INTERLEAVED);
 
     /* Signed 16-bit little-endian format */
     snd_pcm_hw_params_set_format(handle, params, SND_PCM_FORMAT_S16_LE);
@@ -457,26 +474,23 @@ void * play_audio_thread(void *para)
 
     /* 44100 bits/second sampling rate (CD quality) */
     val = SAMPLERATE;
-    snd_pcm_hw_params_set_rate_near(handle, params, 
-                                  &val, &dir);
+    snd_pcm_hw_params_set_rate_near(handle, params, &val, &dir);
 
     /* Set period size to 32 frames. */
     frames = SAMPLERATE/1000*READMSFORONCE;
-    snd_pcm_hw_params_set_period_size_near(handle,
-                              params, &frames, &dir);
+    snd_pcm_hw_params_set_period_size_near(handle, params, &frames, &dir);
 
     /* Write the parameters to the driver */
     rc = snd_pcm_hw_params(handle, params);
-    if (rc < 0) {
-    fprintf(stderr, 
-            "unable to set hw parameters: %s\n",
+    if (rc < 0) 
+    {
+        fprintf(stderr,  "unable to set hw parameters: %s\n",
             snd_strerror(rc));
-    exit(1);
+        exit(1);
     }
 
     /* Use a buffer large enough to hold one period */
-    snd_pcm_hw_params_get_period_size(params, &frames,
-                                    &dir);
+    snd_pcm_hw_params_get_period_size(params, &frames, &dir);
 #if 0                                    
     size = frames * sizeof(short) * channels; /* 2 bytes/sample, 2 channels */
     buffer = (char *) malloc(size);
@@ -487,112 +501,102 @@ void * play_audio_thread(void *para)
     while(flag_play_audio)
     {
         sem_wait(&sem_recv);
-#if 0        
-        rc = read(0, buffer, size);
-        if (rc == 0) {
-          fprintf(stderr, "end of file on input\n");
-          break;
-        } else if (rc != size) {
-          fprintf(stderr,
-                  "short read: read %d bytes\n", rc);
-        }
-#endif        
+        
         //traceprintf("播放\n");
-        if(n > BUFFER_COUNT)
+        if(n >= BUFFER_COUNT)
         {
+            printf("n=%d, pReadHeader->FrameNO=%d\n", n, pReadHeader->FrameNO);
+
             rc = snd_pcm_writei(handle, pReadHeader->buffer, frames);
-            if (rc == -EPIPE) {
-              /* EPIPE means underrun */
-              fprintf(stderr, "underrun occurred\n");
-              snd_pcm_prepare(handle);
-        } 
-        else if (rc < 0) 
-        {
-            fprintf(stderr, "error from writei: %s\n", snd_strerror(rc));
-                    
-            rc = xrun_recovery(handle, rc);             
-            if (rc < 0) 
+            if (rc == -EPIPE) 
             {
-                printf("Write error: %s\n", snd_strerror(rc));
-                //return -1;
-            }                   
-        }  
-        else if (rc != (int)frames) 
-        {
-          fprintf(stderr, 
-                  "short write, write %d frames\n", rc);
-        }
+                /* EPIPE means underrun */
+                fprintf(stderr, "underrun occurred\n");
+                snd_pcm_prepare(handle);
+            } 
+            else if (rc < 0) 
+            {
+                fprintf(stderr, "error from writei: %s\n", snd_strerror(rc));
+                        
+                rc = xrun_recovery(handle, rc);             
+                if (rc < 0) 
+                {
+                    printf("Write error: %s\n", snd_strerror(rc));
+                    //return -1;
+                }                   
+            }  
+            else if (rc != (int)frames) 
+            {
+                fprintf(stderr, "short write, write %d frames\n", rc);
+            }
 
  
 
 
 
 #if VAD_ENABLED
-        signed short * precdata = (signed short*)(&(pReadHeader->buffer[0]));
+            signed short * precdata = (signed short*)(&(pReadHeader->buffer[0]));
 
-				for(i=0;i<256;i++)		//??????
-				{
-						indata[i]= (float)(precdata[i]);
-				}
-  			vad = wb_vad(vadstate,indata);	//??vad??
-				//vad =1;//
-        printf("vad=%d,nZeroPackageCount=%d,n=%d\n", vad, nZeroPackageCount, n);
-				if(vad == 1)
-				{
-					nZeroPackageCount = 0;
-				}
-				else
-				{
-					nZeroPackageCount++;
-				}
+				    for(i=0;i<256;i++)		//??????
+				    {
+						    indata[i]= (float)(precdata[i]);
+				    }
+      			vad = wb_vad(vadstate,indata);	//??vad??
+				    //vad =1;//
+            printf("vad=%d,nZeroPackageCount=%d,n=%d\n", vad, nZeroPackageCount, n);
+				    if(vad == 1)
+				    {
+					    nZeroPackageCount = 0;
+				    }
+				    else
+				    {
+					    nZeroPackageCount++;
+				    }
 #endif
 
 
 
 
 #if VAD_ENABLED
-			if((vad==0) && (nZeroPackageCount > 50))
-			{
-				//printf("z=%d\n", nZeroPackageCount);
-				nZeroPackageCount = 0;
-				while(pReadHeader->pNext != pWriteHeader)
-				{
-				    printf("略过数据包 %d,n=%d\n", pReadHeader->FrameNO, n);
-					  pReadHeader->Valid = 0;//因为是跳过的数据包//数据已播放，不再有效
-					  
-            pthread_mutex_lock(&mutex_lock);
-            n--;
-					  pReadHeader = pReadHeader->pNext;
-            pthread_mutex_unlock(&mutex_lock);
-				}
-			}
-			else
+			      if((vad==0) && (nZeroPackageCount > 50))
+			      {
+				      //printf("z=%d\n", nZeroPackageCount);
+				      nZeroPackageCount = 0;
+				      while(pReadHeader->pNext != pWriteHeader)
+				      {
+				          printf("略过数据包 %d,n=%d\n", pReadHeader->FrameNO, n);
+					        pReadHeader->Valid = 0;//因为是跳过的数据包//数据已播放，不再有效
+					        
+                  pthread_mutex_lock(&mutex_lock);
+                  n--;
+					        pReadHeader = pReadHeader->pNext;
+                  pthread_mutex_unlock(&mutex_lock);
+				      }
+			      }
+			      else
 #endif
-      {
-        printf("          pNO=%d\n", pReadHeader->FrameNO);
-        pthread_mutex_lock(&mutex_lock);
-        pReadHeader->Valid = 0;//数据已播放，不再有效
-        n--;
-        pthread_mutex_unlock(&mutex_lock);
+            {
+              printf("          pNO=%d\n", pReadHeader->FrameNO);
+              pthread_mutex_lock(&mutex_lock);
+              pReadHeader->Valid = 0;//数据已播放，不再有效
+              n--;
+              pthread_mutex_unlock(&mutex_lock);
 
 #if RECORD_PLAY_PCM 
-        fwrite(pReadHeader->buffer, pReadHeader->count, 1, fp);
+              fwrite(pReadHeader->buffer, pReadHeader->count, 1, fp);
 #endif
-        pReadHeader = pReadHeader->pNext;
-      }
+              pReadHeader = pReadHeader->pNext;
+            }
                 
-#if 0
-#if DEBUG_SAVE_PLAY_PCM
-        fwrite(pReadHeader->buffer, sizeof(pReadHeader->buffer), 1, fp);
-#endif
-        pReadHeader = pReadHeader->pNext;
-        n--;  
-#endif
-        }             
-    }                                    
+        } //end n > BUFFERCOUNT
+    }//end while                                    
 #endif
 
+
+#if RECORD_PLAY_PCM 
     fclose(fp);
+#endif
+
     printf("音频播放线程已经关闭 audio play thread is closed\n");
     return NULL;
 }

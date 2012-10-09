@@ -9,9 +9,9 @@
 #define traceprintf
 #endif
 
-#define BUFFER_COUNT       2   //接收端缓冲区有该数量才允许播放
+#define BUFFER_COUNT       3   //接收端缓冲区有该数量才允许播放
 #define SAMPLERATE     16000 //定义采样率
-#define READMSFORONCE     16 //采样周期(ms)
+#define READMSFORONCE      4 //采样周期(ms)
 
 #define UDP_MODE      0
 #define TCP_MODE      1
@@ -20,8 +20,8 @@
 
 #define RECORD_CAPTURE_PCM         0
 #define RECORD_SEND_PCM            0
-#define RECORD_RECV_PCM            1
-#define RECORD_PLAY_PCM            1
+#define RECORD_RECV_PCM            0
+#define RECORD_PLAY_PCM            0
 
 #define MAX_SEND_NO                6
 //char buffer[SAMPLERATE/1000*READMSFORONCE*sizeof(short)];
@@ -52,5 +52,8 @@ typedef struct AudioBuffer
 #define CHANNELS                 1
 
 
-#define VAD_ENABLED              1
+#define VAD_ENABLED              0
+
+
+#define READFILE_SIMULATE_RCV    0 //读文件 模拟成网络数据接收，用于测试ALSA播放是否正常
 #endif
