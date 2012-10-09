@@ -502,7 +502,7 @@ int main(int argc, char **argv)
     dest_addr.sin_port = htons(serverport);          /* 远程连接端口, 注意网络字节顺序*/
     dest_addr.sin_addr.s_addr = inet_addr(serverip); /* 远程 IP 地址, inet_addr() 会返回网络字节顺序*/
     bzero(&(dest_addr.sin_zero), 8);                /* 其余结构须置 0*/    
-
+#if 0
     //绑定本地端口
     local_addr.sin_family = AF_INET;                 /* 注意主机字节顺序*/
     local_addr.sin_port = htons(serverport);          /* 远程连接端口, 注意网络字节顺序*/
@@ -514,7 +514,7 @@ int main(int argc, char **argv)
     {
         perror("绑定错误");
     }
-    
+#endif
     socklen = sizeof(struct sockaddr);
 #if TRAN_MODE==TCP_MODE
     if(connect(fdsocket, (struct sockaddr*)&dest_addr, socklen) == -1)
