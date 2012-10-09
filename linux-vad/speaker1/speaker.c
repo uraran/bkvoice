@@ -536,7 +536,7 @@ void * play_audio_thread(void *para)
 				}
   			vad = wb_vad(vadstate,indata);	//??vad??
 				//vad =1;//
-        printf("vad=%d\n", vad);
+        printf("vad=%d,nZeroPackageCount=%d,n=%d\n", vad, nZeroPackageCount, n);
 				if(vad == 1)
 				{
 					nZeroPackageCount = 0;
@@ -551,18 +551,27 @@ void * play_audio_thread(void *para)
 
 
 #if VAD_ENABLED
-			if((vad==0) && (nZeroPackageCount > 30))
+			if((vad==0) && (nZeroPackageCount > 50))
 			{
-				printf("z=%d\n", nZeroPackageCount);
+				//printf("z=%d\n", nZeroPackageCount);
 				nZeroPackageCount = 0;
 #if 1
-				while(pReadHeader != pWriteHeader)
+				while(pReadHeader->pNext != pWriteHeader)
 				{
-					pReadHeader->Valid = 0;//因为是跳过的数据包//数据已播放，不再有效
-					pReadHeader = pReadHeader->pNext;
-				}
+				    printf("略过数据包 %d,n=%d\n", pReadHeader->FrameNO, n);
+					  pReadHeader->Valid = 0;//因为是跳过的数据包//数据已播放，不再有效
+					  
+            pthread_mutex_lock(&mutex_lock);
+            n--;
+					  pReadHeader = pReadHeader->pNext;
+            pthread_mutex_unlock(&mutex_lock);
+#if 0
+					  if(pReadHeader->pPrior == )
+					  {
+					      
+					  }
 #endif
-				//当前面有5个静音包，则略过
+				}
 			}
 			else
 #endif
@@ -651,11 +660,17 @@ int main(int argc, char **argv)
     }
     
     
-    for(i=0;i<BUFFERNODECOUNT-1;i++)
+    for(i=1;i<BUFFERNODECOUNT-1;i++)
     {
-        audiobuffer[i].pNext = &audiobuffer[i+1];
+    		audiobuffer[i].pPrior = &(audiobuffer[i-1]);
+        audiobuffer[i].pNext  = &(audiobuffer[i+1]);
     }
+	  audiobuffer[0].pPrior =  &(audiobuffer[BUFFERNODECOUNT-1]);
+	  audiobuffer[0].pNext  =  &(audiobuffer[1]);
+	
+	  audiobuffer[BUFFERNODECOUNT-1].pPrior =  &(audiobuffer[BUFFERNODECOUNT-2]);
     audiobuffer[BUFFERNODECOUNT-1].pNext = &audiobuffer[0];
+    
     pWriteHeader = &audiobuffer[0];
     pReadHeader  = &audiobuffer[0];
 
@@ -733,3 +748,5 @@ int main(int argc, char **argv)
         remove_network_recv();
     }
 }
+#endif
+				//当前面有5个静音包，则略过
