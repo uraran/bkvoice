@@ -10,8 +10,8 @@
 #endif
 
 #define BUFFER_COUNT      10   //接收端缓冲区有该数量才允许播放
-#define SAMPLERATE     16000 //定义采样率
-#define READMSFORONCE      4 //采样周期(ms)
+#define SAMPLERATE     24000 //定义采样率
+#define READMSFORONCE     20 //采样周期(ms)
 
 #define UDP_MODE      0
 #define TCP_MODE      1
@@ -39,14 +39,18 @@ typedef struct AudioBuffer
     char reserver3;//
     char reserver4;//
     char reserver5;//
+    int  count;//压缩后数据长度
+    char buffer_encode[SAMPLERATE/1000*READMSFORONCE*sizeof(short)];//压缩后数据
     struct AudioBuffer  *pNext;
-    int count;//实际有效字节数量
+    //int count;//实际有效字节数量
 } __attribute__ ((packed)) AUDIOBUFFER;
 
 
 #define SOUND_OSS                1
 #define SOUND_ALSA               2
-#define SOUND_INTERFACE          SOUND_OSS
+#define SOUND_INTERFACE          SOUND_ALSA
 
 #define CHANNELS                 1
+
+#define SILK_AUDIO_CODEC         1
 #endif
