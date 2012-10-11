@@ -17,6 +17,21 @@
 #endif
 
 
+#if SILK_AUDIO_CODEC
+#include <SILK/interface/SKP_Silk_SDK_API.h>
+#endif
+
+
+#if SILK_AUDIO_CODEC
+/* Define codec specific settings should be moved to h file */
+#define MAX_BYTES_PER_FRAME     1024
+#define MAX_INPUT_FRAMES        5
+#define MAX_FRAME_LENGTH        480
+#define FRAME_LENGTH_MS         20
+#define MAX_API_FS_KHZ          48
+#define MAX_LBRR_DELAY          2
+#endif
+
 AUDIOBUFFER audiobuffer[BUFFERNODECOUNT];
 AUDIOBUFFER *pWriteHeader = NULL;
 AUDIOBUFFER *pReadHeader = NULL;
@@ -258,7 +273,7 @@ void * network_recv_thread(void *p)
     
     /* 设置远程连接的信息*/
     local_addr.sin_family = AF_INET;                 /* 注意主机字节顺序*/
-    local_addr.sin_port = htons(8302);          /* 远程连接端口, 注意网络字节顺序*/
+    local_addr.sin_port = htons(SERVER_PORT);          /* 远程连接端口, 注意网络字节顺序*/
     local_addr.sin_addr.s_addr = htonl(INADDR_ANY); /* 远程 IP 地址, inet_addr() 会返回网络字节顺序*/
     //bzero(&(local_addr.sin_zero), 8);                /* 其余结构须置 0*/    
     
@@ -304,7 +319,17 @@ void * network_recv_thread(void *p)
             fread(pWriteHeader->buffer, sizeof(pWriteHeader->buffer), 1, fptest);
             result = 520;
 #else
+
+
+#if SILK_AUDIO_CODEC
+            result = recvfrom(fdsocket, pWriteHeader->buffer_recv, sizeof(pWriteHeader->buffer)+sizeof(int)+sizeof(int), 0, (struct sockaddr*)&remote_addr, &socklen);
+            pWriteHeader->count = result;//实际字节数
+            printf("pWriteHeader->count=%d\n", pWriteHeader->count);
+#else
             result = recvfrom(fdsocket, pWriteHeader->buffer, sizeof(pWriteHeader->buffer)+sizeof(int)+sizeof(int), 0, (struct sockaddr*)&remote_addr, &socklen);
+#endif
+
+
 #endif
 #elif TRAN_MODE==TCP_MODE
             result = recv(connectsocket, pWriteHeader->buffer, sizeof(pWriteHeader->buffer), 0);
@@ -325,6 +350,18 @@ void * network_recv_thread(void *p)
 #if RECORD_RECV_PCM 
                 fwrite(pWriteHeader->buffer, SAMPLERATE/1000*READMSFORONCE*sizeof(short), 1, fp);
 #endif
+
+
+
+
+#if SILK_AUDIO_CODEC
+                pthread_mutex_lock(&mutex_lock);
+                pWriteHeader->Valid = 1;
+                n++;
+                pthread_mutex_unlock(&mutex_lock);
+                pWriteHeader = pWriteHeader->pNext;
+                sem_post(&sem_recv);
+#else
                 traceprintf("收到数据 %d byte\n", result);
                 printf("rNO=%d\n", pWriteHeader->FrameNO);
                 pWriteHeader->count = SAMPLERATE/1000*READMSFORONCE*sizeof(short);
@@ -334,11 +371,16 @@ void * network_recv_thread(void *p)
                 pthread_mutex_unlock(&mutex_lock);
                 pWriteHeader = pWriteHeader->pNext;
                 sem_post(&sem_recv);
+#endif
+
+
+
+
 #if READFILE_SIMULATE_RCV
                 usleep(14*1000);
 #endif
-                //sem_post(&sem_recv);
-                //sem_post(&sem_recv);
+                sem_post(&sem_recv);
+                sem_post(&sem_recv);
                 //printf("收到%d字节\n", result);
             }
         }
@@ -370,6 +412,91 @@ void * play_audio_thread(void *para)
     float indata[256];
     int i;
 #endif
+
+
+
+
+
+
+
+#if SILK_AUDIO_CODEC
+    size_t    counter;
+    SKP_int32 args, totPackets, i, k;
+    SKP_int16 result, length, tot_len;
+    SKP_int16 nBytes;
+    SKP_uint8 payload[    MAX_BYTES_PER_FRAME * MAX_INPUT_FRAMES * ( MAX_LBRR_DELAY + 1 ) ];
+    SKP_uint8 *payloadEnd = NULL, *payloadToDec = NULL;
+    SKP_uint8 FECpayload[ MAX_BYTES_PER_FRAME * MAX_INPUT_FRAMES ], *payloadPtr;
+    SKP_int16 nBytesFEC;
+    SKP_int16 nBytesPerPacket[ MAX_LBRR_DELAY + 1 ], totBytes;
+    SKP_int16 out[ ( ( FRAME_LENGTH_MS * MAX_API_FS_KHZ ) << 1 ) * MAX_INPUT_FRAMES ], *outPtr;
+    char      speechOutFileName[ 150 ], bitInFileName[ 150 ];
+    FILE      *bitInFile, *speechOutFile;
+    SKP_int32 API_Fs_Hz = 24000;
+    SKP_int32 decSizeBytes;
+    void      *psDec;
+    float     loss_prob;
+    SKP_int32 frames, lost, quiet;
+    SKP_SILK_SDK_DecControlStruct DecControl;
+
+#if RECORD_RECV_SILK_FILE
+    FILE * fp_recv = fopen("recv.silk", "wb");
+
+    static const char Silk_header[] = "#!SILK_V3";
+    fwrite(Silk_header, sizeof( char ), strlen( Silk_header ), fp_recv);
+#endif
+    /* default settings */
+    quiet     = 0;
+    loss_prob = 0.0f;
+
+    if( !quiet ) {
+        //printf("******************* Silk Decoder v %s ****************\n", SKP_Silk_SDK_get_version());
+        //printf("******************* Compiled for %d bit cpu ********* \\n", (int)sizeof(void*) * 8 );
+        //printf( "Input:                       %s\n", bitInFileName );
+        //printf( "Output:                      %s\n", speechOutFileName );
+    }
+
+    /* Set the samplingrate that is requested for the output */
+    if( API_Fs_Hz == 0 ) {
+        DecControl.API_sampleRate = 24000;
+    } else {
+        DecControl.API_sampleRate = API_Fs_Hz;
+    }
+
+    /* Initialize to one frame per packet, for proper concealment before first packet arrives */
+    DecControl.framesPerPacket = 1;
+
+    /* Create decoder */
+    result = SKP_Silk_SDK_Get_Decoder_Size( &decSizeBytes );
+    if( result ) {
+        printf( "\nSKP_Silk_SDK_Get_Decoder_Size returned %d", result );
+    }
+    psDec = malloc( decSizeBytes );
+
+    /* Reset decoder */
+    result = SKP_Silk_SDK_InitDecoder( psDec );
+    if( result ) {
+        printf( "\nSKP_Silk_InitDecoder returned %d", result );
+    }
+
+    totPackets = 0;
+    payloadEnd = payload;
+#endif
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 #if VAD_ENABLED
@@ -501,11 +628,32 @@ void * play_audio_thread(void *para)
     while(flag_play_audio)
     {
         sem_wait(&sem_recv);
-        
-        //traceprintf("播放\n");
+
+        int buffer_count;
         if(n >= BUFFER_COUNT)
         {
-            printf("n=%d, pReadHeader->FrameNO=%d\n", n, pReadHeader->FrameNO);
+            buffer_count = 0;
+        }
+        else if (n < 3)
+        {
+            buffer_count = BUFFER_COUNT;
+        }
+
+        //traceprintf("播放\n");
+        if(n >= buffer_count)
+        {
+#if SILK_AUDIO_CODEC
+            /* Decode 20 ms */
+            result = SKP_Silk_SDK_Decode(psDec, &DecControl, 0, pReadHeader->buffer_recv, pReadHeader->count, (pReadHeader->buffer), &length);
+            if( result ) 
+            {
+                printf( "\nSKP_Silk_SDK_Decode returned %d\n", result );
+            }
+            else
+            {
+                printf("解码正常, 输出%d字节\n", length);
+            }
+#endif
 
             rc = snd_pcm_writei(handle, pReadHeader->buffer, frames);
             if (rc == -EPIPE) 
@@ -529,10 +677,6 @@ void * play_audio_thread(void *para)
             {
                 fprintf(stderr, "short write, write %d frames\n", rc);
             }
-
- 
-
-
 
 #if VAD_ENABLED
             signed short * precdata = (signed short*)(&(pReadHeader->buffer[0]));
@@ -587,7 +731,6 @@ void * play_audio_thread(void *para)
 #endif
               pReadHeader = pReadHeader->pNext;
             }
-                
         } //end n > BUFFERCOUNT
     }//end while                                    
 #endif
@@ -620,14 +763,15 @@ int main(int argc, char **argv)
     FILE *fprecord = NULL;
     int i;
     int  iret1, iret2, result;
-    
+
+    pthread_mutex_init(&mutex_lock, NULL);
+
+#if 0
     if(argc <= 1)
     {
         printf("参数个数错误\n");
         return -1;
     }
-    
-    pthread_mutex_init(&mutex_lock, NULL);
 
     if(strcmp("capture", argv[1])==0)
     {
@@ -656,7 +800,8 @@ int main(int argc, char **argv)
             printf("未知的模式\n");
             return -1;
     }
-    
+#endif
+    runmode = RUNMODE_SERVER;
     
     for(i=1;i<BUFFERNODECOUNT-1;i++)
     {
