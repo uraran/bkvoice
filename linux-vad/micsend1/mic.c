@@ -16,6 +16,110 @@
 #include <alsa/asoundlib.h>
 #endif
 
+
+
+#if SILK_AUDIO_CODEC //SILK启用
+#include <SILK/interface/SKP_Silk_SDK_API.h>
+/* Define codec specific settings */
+#define MAX_BYTES_PER_FRAME     250 // Equals peak bitrate of 100 kbps 
+#define MAX_INPUT_FRAMES        5
+#define MAX_LBRR_DELAY          2
+#define MAX_FRAME_LENGTH        480
+#define FRAME_LENGTH_MS         20
+#define MAX_API_FS_KHZ          48
+SKP_int32 k, args, totPackets, totActPackets, ret;
+//SKP_int16 nBytes;
+double    sumBytes, sumActBytes, avg_rate, act_rate, nrg;
+SKP_uint8 payload[ MAX_BYTES_PER_FRAME * MAX_INPUT_FRAMES ];
+SKP_int16 in[ FRAME_LENGTH_MS * MAX_API_FS_KHZ * MAX_INPUT_FRAMES ];
+char      speechInFileName[ 150 ], bitOutFileName[ 150 ];
+FILE      *bitOutFile, *speechInFile;
+SKP_int32 encSizeBytes;
+void      *psEnc;
+/* default settings */
+SKP_int32 API_fs_Hz = 24000;
+SKP_int32 max_internal_fs_Hz = 0;
+SKP_int32 targetRate_bps = 25000;
+SKP_int32 packetSize_ms = 20;
+SKP_int32 frameSizeReadFromFile_ms = 20;
+SKP_int32 packetLoss_perc = 0, complexity_mode = 2, smplsSinceLastPacket;
+SKP_int32 INBandFEC_enabled = 0, DTX_enabled = 0, quiet = 0;
+SKP_SILK_SDK_EncControlStruct encControl; // Struct for input to encoder
+
+void init_silk_encoder()
+{    
+    /* If no max internal is specified, set to minimum of API fs and 24 kHz */
+    if( max_internal_fs_Hz == 0 ) {
+        max_internal_fs_Hz = 24000;
+        if( API_fs_Hz < max_internal_fs_Hz ) {
+            max_internal_fs_Hz = API_fs_Hz;
+        }
+    }
+
+
+    /* Print options */
+    if( !quiet ) {
+        printf("******************* Silk Encoder v %s ****************\n", SKP_Silk_SDK_get_version());
+        printf("******************* Compiled for %d bit cpu ********* \n", (int)sizeof(void*) * 8 );
+        printf( "Input:                          %s\n",     speechInFileName );
+        printf( "Output:                         %s\n",     bitOutFileName );
+        printf( "API sampling rate:              %d Hz\n",  API_fs_Hz );
+        printf( "Maximum internal sampling rate: %d Hz\n",  max_internal_fs_Hz );
+        printf( "Packet interval:                %d ms\n",  packetSize_ms );
+        printf( "Inband FEC used:                %d\n",     INBandFEC_enabled );
+        printf( "DTX used:                       %d\n",     DTX_enabled );
+        printf( "Complexity:                     %d\n",     complexity_mode );
+        printf( "Target bitrate:                 %d bps\n", targetRate_bps );
+    }
+
+    /* Create Encoder */
+    ret = SKP_Silk_SDK_Get_Encoder_Size( &encSizeBytes );
+    if( ret ) {
+        printf( "\nSKP_Silk_create_encoder returned %d", ret );
+    }
+
+    printf("encSizeBytes: %d\n", encSizeBytes);
+    psEnc = malloc(encSizeBytes);
+
+    /* Reset Encoder */
+    ret = SKP_Silk_SDK_InitEncoder( psEnc, &encControl );
+    if(ret) 
+    {
+        printf( "\nSKP_Silk_reset_encoder returned %d", ret );
+    }
+    
+    //printf("111111111111\n");
+    /* Set Encoder parameters */
+    encControl.API_sampleRate        = API_fs_Hz;
+    encControl.maxInternalSampleRate = max_internal_fs_Hz;
+    encControl.packetSize            = ( packetSize_ms * API_fs_Hz ) / 1000;
+    encControl.packetLossPercentage  = packetLoss_perc;
+    encControl.useInBandFEC          = INBandFEC_enabled;
+    encControl.useDTX                = DTX_enabled;
+    encControl.complexity            = complexity_mode;
+    encControl.bitRate               = ( targetRate_bps > 0 ? targetRate_bps : 0 );
+
+    if( API_fs_Hz > MAX_API_FS_KHZ * 1000 || API_fs_Hz < 0 ) {
+        printf( "\nError: API sampling rate = %d out of range, valid range 8000 - 48000 \n \n", API_fs_Hz );
+        exit( 0 );
+    }
+
+    //printf("22222222\n");
+    totPackets           = 0;
+    totActPackets        = 0;
+    smplsSinceLastPacket = 0;
+    sumBytes             = 0.0;
+    sumActBytes          = 0.0;
+
+
+}  
+#endif
+
+
+
+
+
+
 AUDIOBUFFER audiobuffer[BUFFERNODECOUNT];
 AUDIOBUFFER *pWriteHeader = NULL;
 AUDIOBUFFER *pReadHeader = NULL;
@@ -99,6 +203,14 @@ void * capture_audio_thread(void *para)
     FILE *fp = fopen("capture.pcm", "wb");
 #endif
 
+#if SILK_AUDIO_CODEC
+    SKP_uint8 encode[MAX_BYTES_PER_FRAME * MAX_INPUT_FRAMES];
+#endif
+
+#if SILK_AUDIO_CODEC
+    init_silk_encoder();//初始化silk codec
+    printf("end of init silk encoder\n");
+#endif
 
 #if (SOUND_INTERFACE == SOUND_OSS)
     fdsound = open("/dev/dsp", O_RDONLY);
@@ -140,6 +252,7 @@ void * capture_audio_thread(void *para)
     }
     close(fdsound);
 #elif (SOUND_INTERFACE == SOUND_ALSA)
+    printf("alsa xxxxxxxxxxxxxxx\n");
     struct timeval tv;
     struct timezone tz;
     /* Open PCM device for recording (capture). */
@@ -179,6 +292,7 @@ void * capture_audio_thread(void *para)
     while(flag_capture_audio)
     {
         rc = snd_pcm_readi(handle, pWriteHeader->buffer, frames);
+        printf("read rc=%d\n", rc);
         if (rc == -EPIPE) 
         {
             /* EPIPE means overrun */
@@ -205,6 +319,19 @@ void * capture_audio_thread(void *para)
             fprintf(stderr, "write error %d\n", rc);
         }
 #endif 
+#endif
+#if SILK_AUDIO_CODEC
+            /* max payload size */
+            int nbBytes = MAX_BYTES_PER_FRAME * MAX_INPUT_FRAMES;
+            /* Silk Encoder */
+            ret = SKP_Silk_SDK_Encode(psEnc, &encControl, pWriteHeader->buffer, (SKP_int16)SAMPLERATE/1000*READMSFORONCE, pWriteHeader->buffer_encode, &nbBytes);
+            pWriteHeader->count = nbBytes;
+            printf("ret=%d, nbBytes=%d\n", ret, nbBytes);
+            if(ret) 
+            { 
+                printf( "SKP_Silk_Encode returned %d, nbBytes=%d\n", ret, nbBytes);
+                //break;
+            }
 #endif
         sem_post(&sem_capture);                      
         gettimeofday(&tv, &tz);
@@ -264,7 +391,11 @@ void * network_send_thread(void *p)
                     continue;
                 }
 #if TRAN_MODE==UDP_MODE
+#if SILK_AUDIO_CODEC
+                if(-1 == sendto(fdsocket, pReadHeader->buffer_encode, pReadHeader->count, 0, (struct sockaddr*)&dest_addr, socklen))
+#else
                 if(-1 == sendto(fdsocket, pReadHeader->buffer, sizeof(pReadHeader->buffer)+sizeof(int)+sizeof(int), 0, (struct sockaddr*)&dest_addr, socklen))
+#endif
 #elif TRAN_MODE==TCP_MODE
                 if(-1 == send(fdsocket, pReadHeader->buffer, sizeof(pReadHeader->buffer), 0))
 #endif
@@ -277,7 +408,7 @@ void * network_send_thread(void *p)
                         fwrite(pReadHeader->buffer, SAMPLERATE/1000*READMSFORONCE*sizeof(short), 1, fp);
 #endif
                         traceprintf("n=%d\n", n);
-                        printf("    sNO:%d\n", pReadHeader->FrameNO);
+                        //printf("    sNO:%d\n", pReadHeader->FrameNO);
                         pthread_mutex_lock(&mutex_lock);
                         pReadHeader->Valid = 0;
                         n--;
