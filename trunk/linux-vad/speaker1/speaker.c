@@ -536,7 +536,7 @@ void* play_audio_thread(void *para)
         {
             buffer_count = 0;
         }
-        else if (n_decode < 5)
+        else if (n_decode < 1)
         {
             buffer_count = BUFFER_COUNT;
         }
