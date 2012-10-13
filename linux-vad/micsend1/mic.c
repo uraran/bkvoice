@@ -333,7 +333,8 @@ void * capture_audio_thread(void *para)
                 //break;
             }
 #endif
-        sem_post(&sem_capture);                      
+        sem_post(&sem_capture); 
+        sem_post(&sem_capture);                     
         gettimeofday(&tv, &tz);
         ((AUDIOBUFFER*)(pWriteHeader->buffer))->FrameNO = FrameNO++;
         //((AUDIOBUFFER*)(pWriteHeader->buffer))->sec = tv.tv_sec;
@@ -345,6 +346,7 @@ void * capture_audio_thread(void *para)
         n++;                
         pthread_mutex_unlock(&mutex_lock);  
         pWriteHeader = pWriteHeader->pNext;
+        sem_post(&sem_capture);                     
         //traceprintf("发送信号量 sem_capture\n");
     }
                                          
