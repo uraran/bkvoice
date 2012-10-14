@@ -42,6 +42,34 @@ pushd SILK_SDK_SRC_ARM_v1.0.8
 make clean
 make ARM920T=yes TOOLCHAIN_PREFIX=arm-none-linux-gnueabi-
 
+
+if [ ! -d  $SDK_DIR/bin ]; then
+  mkdir -p $SDK_DIR/bin
+  echo "$SDK_DIR/bin 目录创建成功"
+else
+  echo "$SDK_DIR/bin 目录已经存在"
+fi
+
+cp decoder $SDK_DIR/bin
+cp encoder $SDK_DIR/bin
+
+
+
+if [ ! -d  /tftpboot ]; then
+  mkdir -p /tftpboot
+  echo "/tftpboot 目录创建成功"
+else
+  echo "/tftpboot 目录已经存在"
+fi
+
+cp decoder /tftpboot
+cp encoder /tftpboot
+
+
+
+
+
+
 if [ ! -d  $SDK_DIR/include ]; then
   mkdir -p $SDK_DIR/include
   echo "$SDK_DIR/include 目录创建成功"
