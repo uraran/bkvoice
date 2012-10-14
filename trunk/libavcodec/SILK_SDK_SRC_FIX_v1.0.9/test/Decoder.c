@@ -34,11 +34,23 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define _CRT_SECURE_NO_DEPRECATE    1
 #endif
 
+#define WRITE_TO_AUDIO_DEVICE_AS_PCMFILE          1
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "SKP_Silk_SDK_API.h"
 #include "SKP_Silk_SigProc_FIX.h"
+
+#if WRITE_TO_AUDIO_DEVICE_AS_PCMFILE
+#define WRITE_TO_SPEAKER  1
+#define WRITE_TO_FILE     2
+#include <fcntl.h>
+#include <unistd.h>
+#include <linux/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/soundcard.h>
+#endif
 
 /* Define codec specific settings should be moved to h file */
 #define MAX_BYTES_PER_FRAME     1024
@@ -112,6 +124,20 @@ static void print_usage(char* argv[]) {
 
 int main( int argc, char* argv[] )
 {
+#if WRITE_TO_AUDIO_DEVICE_AS_PCMFILE
+    int soundfd = 0;
+    int format = AFMT_S16_LE;  
+    int channels = 1;//采通道
+    int setting=64;
+    int writeto;
+    #define SAVE_RECORD_FILE 1
+    #if SAVE_RECORD_FILE
+    FILE *fp_record=NULL;
+    #endif
+    int loop_count = 0;//读取音频包计数
+    int result;
+#endif
+
     unsigned long tottime, starttime;
     double    filetime;
     size_t    counter;
@@ -126,7 +152,7 @@ int main( int argc, char* argv[] )
     SKP_int16 out[ ( ( FRAME_LENGTH_MS * MAX_API_FS_KHZ ) << 1 ) * MAX_INPUT_FRAMES ], *outPtr;
     char      speechOutFileName[ 150 ], bitInFileName[ 150 ];
     FILE      *bitInFile, *speechOutFile;
-    SKP_int32 packetSize_ms=0, API_Fs_Hz = 0;
+    SKP_int32 packetSize_ms=0, API_Fs_Hz = 24000;
     SKP_int32 decSizeBytes;
     void      *psDec;
     SKP_float loss_prob;
@@ -191,18 +217,59 @@ int main( int argc, char* argv[] )
         }
     }
 
-    speechOutFile = fopen( speechOutFileName, "wb" );
-    if( speechOutFile == NULL ) {
-        printf( "Error: could not open output file %s\n", speechOutFileName );
-        exit( 0 );
-    }
-
     /* Set the samplingrate that is requested for the output */
     if( API_Fs_Hz == 0 ) {
         DecControl.API_sampleRate = 24000;
     } else {
         DecControl.API_sampleRate = API_Fs_Hz;
     }
+
+
+
+
+
+
+
+#if WRITE_TO_AUDIO_DEVICE_AS_PCMFILE
+    /* Open files */
+    if(strcmp(speechOutFileName, "-")==0)
+    {
+#if SAVE_RECORD_FILE
+        fp_record = fopen("record_out.pcm", "wb");
+#endif
+        writeto = WRITE_TO_SPEAKER; 
+        printf("解码后输出到audio device\n");       
+        soundfd = open("/dev/dsp", O_WRONLY);/*只读方式打开文件音频设备-lpthread文件*/
+        if(soundfd<0)
+        {
+           perror("音频设备open");
+           return -1;
+        }
+        ioctl(soundfd, SNDCTL_DSP_SPEED, &API_Fs_Hz);//采样频率
+        ioctl(soundfd, SNDCTL_DSP_SETFMT, &format);//音频设备位宽
+        ioctl(soundfd, SNDCTL_DSP_CHANNELS, &channels);//音频设备通道
+        ioctl(soundfd, SNDCTL_DSP_SETFRAGMENT, &setting);//采样缓冲区
+        printf("API_Fs_Hz=%d, format=%d, channels=%d, setting=%d\n", API_Fs_Hz,format, channels, setting);
+    }
+    else
+    {
+        writeto = WRITE_TO_FILE;     
+        printf("解码后输出到文件\n");          
+        speechOutFile = fopen( speechOutFileName, "wb" );
+        if( speechOutFile == NULL ) {
+            printf( "Error: could not open output file %s\n", speechOutFileName );
+            exit( 0 );
+        }
+    }
+#else
+    speechOutFile = fopen( speechOutFileName, "wb" );
+    if( speechOutFile == NULL ) {
+        printf( "Error: could not open output file %s\n", speechOutFileName );
+        exit( 0 );
+    }
+#endif
+
+
 
     /* Initialize to one frame per packet, for proper concealment before first packet arrives */
     DecControl.framesPerPacket = 1;
@@ -340,7 +407,35 @@ int main( int argc, char* argv[] )
 #ifdef _SYSTEM_IS_BIG_ENDIAN   
         swap_endian( out, tot_len );
 #endif
+
+
+
+
+
+
+
+#if WRITE_TO_AUDIO_DEVICE_AS_PCMFILE
+        if(writeto == WRITE_TO_SPEAKER)
+        {
+            result = write(soundfd, out, sizeof( SKP_int16 ) * tot_len);
+            if(result == (sizeof( SKP_int16 ) * tot_len))
+            {
+                printf("写入%d字节\n", result);
+            }
+            else
+            {
+                printf("写入长度与预期不同, result=%d, sizeof( SKP_int16 ) * tot_len=%d,soundfd=%d\n", result, sizeof( SKP_int16 ) * tot_len, soundfd);
+            }
+        }
+        else if(writeto == WRITE_TO_FILE)
+        {
+            fwrite( out, sizeof( SKP_int16 ), tot_len, speechOutFile );
+        }
+#else
         fwrite( out, sizeof( SKP_int16 ), tot_len, speechOutFile );
+#endif
+
+
 
         /* Update buffer */
         totBytes = 0;
@@ -432,7 +527,45 @@ int main( int argc, char* argv[] )
 #ifdef _SYSTEM_IS_BIG_ENDIAN   
         swap_endian( out, tot_len );
 #endif
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if WRITE_TO_AUDIO_DEVICE_AS_PCMFILE
+        if(writeto == WRITE_TO_SPEAKER)
+        {
+            result = write(soundfd, out, sizeof( SKP_int16 ) * tot_len);
+            if(result == (sizeof( SKP_int16 ) * tot_len))
+            {
+                printf("写入%d字节\n", result);
+            }
+            else
+            {
+                printf("写入长度与预期不同, result=%d, sizeof( SKP_int16 ) * tot_len=%d,soundfd=%d\n", result, sizeof( SKP_int16 ) * tot_len, soundfd);
+            }
+        }
+        else if(writeto == WRITE_TO_FILE)
+        {
+            fwrite( out, sizeof( SKP_int16 ), tot_len, speechOutFile );
+        }
+#else
         fwrite( out, sizeof( SKP_int16 ), tot_len, speechOutFile );
+#endif
+
+
+
+
+
 
         /* Update Buffer */
         totBytes = 0;
@@ -455,9 +588,12 @@ int main( int argc, char* argv[] )
     /* Free decoder */
     free( psDec );
 
+#if WRITE_TO_AUDIO_DEVICE_AS_PCMFILE
+#else
     /* Close files */
     fclose( speechOutFile );
     fclose( bitInFile );
+#endif
 
     filetime = totPackets * 1e-3 * packetSize_ms;
     if( !quiet ) {
