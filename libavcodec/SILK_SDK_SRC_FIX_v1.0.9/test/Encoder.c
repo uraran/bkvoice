@@ -34,10 +34,20 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define _CRT_SECURE_NO_DEPRECATE    1
 #endif
 
+#define READ_FROM_AUDIO_DEVICE_AS_PCMFILE          1
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "SKP_Silk_SDK_API.h"
+
+#if READ_FROM_AUDIO_DEVICE_AS_PCMFILE
+#include <fcntl.h>
+#include <unistd.h>
+#include <linux/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/soundcard.h>
+#endif
 
 /* Define codec specific settings */
 #define MAX_BYTES_PER_FRAME     250 // Equals peak bitrate of 100 kbps 
@@ -112,6 +122,20 @@ static void print_usage( char* argv[] ) {
 
 int main( int argc, char* argv[] )
 {
+#if READ_FROM_AUDIO_DEVICE_AS_PCMFILE
+    int soundfd = 0;
+    int format = AFMT_S16_LE;  
+    int channels = 1;//采通道
+    int setting=64;
+    #define READ_FROM_MIC  1
+    #define READ_FROM_FILE 2
+    int readfrom;
+    #define SAVE_RECORD_FILE 1
+    #if SAVE_RECORD_FILE
+    FILE *fp_record = fopen("record.pcm", "wb");
+    #endif
+#endif
+
     unsigned long tottime, starttime;
     double    filetime;
     size_t    counter;
@@ -213,12 +237,41 @@ int main( int argc, char* argv[] )
         printf( "Target bitrate:                 %d bps\n", targetRate_bps );
     }
 
+
+#if READ_FROM_AUDIO_DEVICE_AS_PCMFILE
+    /* Open files */
+    if(strcmp(speechInFileName, "-")==0)
+    {
+        readfrom = READ_FROM_MIC;        
+        soundfd = open("/dev/dsp", O_RDONLY);/*只读方式打开文件音频设备-lpthread文件*/
+        if(soundfd<0)
+        {
+           perror("音频设备open");
+           //return -1;
+        }
+        ioctl(soundfd, SNDCTL_DSP_SPEED, &API_fs_Hz);//采样频率
+        ioctl(soundfd, SNDCTL_DSP_SETFMT, &format);//音频设备位宽
+        ioctl(soundfd, SNDCTL_DSP_CHANNELS, &channels);//音频设备通道
+        ioctl(soundfd, SNDCTL_DSP_SETFRAGMENT, &setting);//采样缓冲区
+    }
+    else
+    {
+        readfrom = READ_FROM_FILE;
+        speechInFile = fopen( speechInFileName, "rb" ); 
+        if( speechInFile == NULL ) {
+            printf( "Error: could not open input file %s\n", speechInFileName );
+            exit( 0 );
+        }
+    }
+#else
     /* Open files */
     speechInFile = fopen( speechInFileName, "rb" );
     if( speechInFile == NULL ) {
         printf( "Error: could not open input file %s\n", speechInFileName );
         exit( 0 );
     }
+#endif
+
     bitOutFile = fopen( bitOutFileName, "wb" );
     if( bitOutFile == NULL ) {
         printf( "Error: could not open output file %s\n", bitOutFileName );
@@ -271,8 +324,27 @@ int main( int argc, char* argv[] )
     smplsSinceLastPacket = 0;
     
     while( 1 ) {
+#if READ_FROM_AUDIO_DEVICE_AS_PCMFILE
+        if(readfrom == READ_FROM_FILE)
+        {
+            counter = fread( in, sizeof( SKP_int16 ), ( frameSizeReadFromFile_ms * API_fs_Hz ) / 1000, speechInFile );  
+            printf("from file counter=%d, sizeof( SKP_int16 )=%d, ( frameSizeReadFromFile_ms * API_fs_Hz ) / 1000=%d\n", counter, sizeof( SKP_int16 ), ( frameSizeReadFromFile_ms * API_fs_Hz ) / 1000);       
+        }
+        else
+        {
+            counter = read(soundfd, in, sizeof( SKP_int16 ) * ( frameSizeReadFromFile_ms * API_fs_Hz ) / 1000);
+            printf("读入counter=%d字节\n", counter);
+#if SAVE_RECORD_FILE
+            fwrite(in,  sizeof( SKP_int16 ), ( frameSizeReadFromFile_ms * API_fs_Hz ) / 1000, fp_record);
+#endif  
+            //printf("from file counter=%d, sizeof( SKP_int16 )=%d, ( frameSizeReadFromFile_ms * API_fs_Hz ) / 1000=%d\n", counter, sizeof( SKP_int16 ), ( frameSizeReadFromFile_ms * API_fs_Hz ) / 1000);       
+            counter = counter/sizeof( SKP_int16 );
+        }
+#else
         /* Read input from file */
         counter = fread( in, sizeof( SKP_int16 ), ( frameSizeReadFromFile_ms * API_fs_Hz ) / 1000, speechInFile );
+#endif
+
 #ifdef _SYSTEM_IS_BIG_ENDIAN
         swap_endian( in, counter );
 #endif
@@ -342,8 +414,30 @@ int main( int argc, char* argv[] )
     /* Free Encoder */
     free( psEnc );
 
+
+
+#if READ_FROM_AUDIO_DEVICE_AS_PCMFILE
+    if(readfrom == READ_FROM_FILE)
+    {
+        fclose( speechInFile );
+    }
+    else
+    {
+        close(soundfd);
+    }
+    fclose( bitOutFile   );
+
+    #if SAVE_RECORD_FILE
+    if(!fp_record)
+    {
+        fclose(fp_record);
+    }
+    #endif
+#else
     fclose( speechInFile );
     fclose( bitOutFile   );
+#endif
+
 
     filetime  = totPackets * 1e-3 * packetSize_ms;
     avg_rate  = 8.0 / packetSize_ms * sumBytes       / totPackets;
