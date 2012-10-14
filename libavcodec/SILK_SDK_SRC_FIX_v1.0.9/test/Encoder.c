@@ -244,7 +244,7 @@ int main( int argc, char* argv[] )
     if(strcmp(speechInFileName, "-")==0)
     {
 #if SAVE_RECORD_FILE
-        fp_record = fopen("record.pcm", "wb");
+        fp_record = fopen("record_in.pcm", "wb");
 #endif
         readfrom = READ_FROM_MIC;        
         soundfd = open("/dev/dsp", O_RDONLY);/*只读方式打开文件音频设备-lpthread文件*/
