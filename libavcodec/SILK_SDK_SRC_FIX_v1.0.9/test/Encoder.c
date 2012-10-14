@@ -132,8 +132,9 @@ int main( int argc, char* argv[] )
     int readfrom;
     #define SAVE_RECORD_FILE 1
     #if SAVE_RECORD_FILE
-    FILE *fp_record = fopen("record.pcm", "wb");
+    FILE *fp_record=NULL;
     #endif
+    int loop_count = 0;//读取音频包计数
 #endif
 
     unsigned long tottime, starttime;
@@ -242,6 +243,9 @@ int main( int argc, char* argv[] )
     /* Open files */
     if(strcmp(speechInFileName, "-")==0)
     {
+#if SAVE_RECORD_FILE
+        fp_record = fopen("record.pcm", "wb");
+#endif
         readfrom = READ_FROM_MIC;        
         soundfd = open("/dev/dsp", O_RDONLY);/*只读方式打开文件音频设备-lpthread文件*/
         if(soundfd<0)
@@ -330,7 +334,7 @@ int main( int argc, char* argv[] )
             counter = fread( in, sizeof( SKP_int16 ), ( frameSizeReadFromFile_ms * API_fs_Hz ) / 1000, speechInFile );  
             printf("from file counter=%d, sizeof( SKP_int16 )=%d, ( frameSizeReadFromFile_ms * API_fs_Hz ) / 1000=%d\n", counter, sizeof( SKP_int16 ), ( frameSizeReadFromFile_ms * API_fs_Hz ) / 1000);       
         }
-        else
+        else if(readfrom == READ_FROM_MIC)
         {
             counter = read(soundfd, in, sizeof( SKP_int16 ) * ( frameSizeReadFromFile_ms * API_fs_Hz ) / 1000);
             printf("读入counter=%d字节\n", counter);
@@ -348,10 +352,21 @@ int main( int argc, char* argv[] )
 #ifdef _SYSTEM_IS_BIG_ENDIAN
         swap_endian( in, counter );
 #endif
+
+
+
+
+#if READ_FROM_AUDIO_DEVICE_AS_PCMFILE
+        loop_count++;
+        if(loop_count > 50*3)
+        {
+            break;
+        }
+#else
         if( ( SKP_int )counter < ( ( frameSizeReadFromFile_ms * API_fs_Hz ) / 1000 ) ) {
             break;
         }
-
+#endif
         /* max payload size */
         nBytes = MAX_BYTES_PER_FRAME * MAX_INPUT_FRAMES;
 
