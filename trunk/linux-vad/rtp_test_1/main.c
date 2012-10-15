@@ -65,7 +65,7 @@ int main()
 	
 	dest_addr.sin_family=AF_INET;
 	dest_addr.sin_port = htons(6666);
-	dest_addr.sin_addr.s_addr = INADDR_ANY;
+	dest_addr.sin_addr.s_addr =  inet_addr("192.168.2.233");//这个地址是多少,vlc的rtp后跟的参数就是多少
 	bzero(&(dest_addr.sin_zero),8);
 	
 	// Open TS file
