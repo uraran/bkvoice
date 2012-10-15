@@ -29,7 +29,7 @@
   IN THE SOFTWARE.
 
 */
-
+#include <string.h>
 #include "rtppacket.h"
 #include "rtpstructs.h"
 #include "rtpdefines.h"

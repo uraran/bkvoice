@@ -29,7 +29,7 @@
   IN THE SOFTWARE.
 
 */
-
+#include <string.h>
 #include "rtcpcompoundpacketbuilder.h"
 #include "rtcpsrpacket.h"
 #include "rtcprrpacket.h"
