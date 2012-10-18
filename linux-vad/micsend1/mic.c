@@ -18,6 +18,62 @@
 
 
 
+#if SPEEX_AUDIO_CODEC
+#include <speex/speex.h>
+#include <speex/speex_stereo.h>
+#include <speex/speex_callbacks.h>
+#include <speex/speex_preprocess.h>
+
+/*保存编码的状态*/         
+void *stateEncode;   
+/*保存字节因此他们可以被speex常规读写*/
+static SpeexBits bitsEncode;        
+static SpeexPreprocessState *preprocess = NULL;
+static int denoise_enabled=2, agc_enabled=2;
+spx_int32_t frame_size;       //缓冲去大小
+
+void SpeexEncoderInit(void)
+{
+    int i, tmp=10;//质量
+    int speexFrequency=SAMPLERATE; //编码器的采样率
+    const SpeexMode *mode=NULL;
+    spx_int32_t complexity=3; //编码复杂度
+    spx_int32_t bitrate=0;   //位采样率
+#if (SAMPLERATE == 8000)
+    mode = speex_lib_get_mode (SPEEX_MODEID_NB); //宽带编码
+#elif (SAMPLERATE == 16000)
+    mode = speex_lib_get_mode (SPEEX_MODEID_WB); //宽带编码
+#elif (SAMPLERATE == 32000)
+    mode = speex_lib_get_mode (SPEEX_MODEID_UWB); //宽带编码
+#endif
+   //新建一个新的编码状态在窄宽(narrowband)模式下
+   stateEncode = speex_encoder_init(mode);   //编码器
+   
+   speex_encoder_ctl(stateEncode, SPEEX_GET_FRAME_SIZE, &frame_size); //得到缓冲区大小
+   printf ("根据设置从speex编码器读出frame_size:%d, \n16bit深度下一次需要%d样本,一次处理%d字节\n",frame_size, frame_size, frame_size*2);
+   speex_encoder_ctl(stateEncode, SPEEX_SET_COMPLEXITY, &complexity); //编码复杂性
+   speex_encoder_ctl(stateEncode, SPEEX_SET_SAMPLING_RATE, &speexFrequency); //编码器实时设置采样率
+   speex_encoder_ctl(stateEncode, SPEEX_SET_QUALITY, &tmp);  //编码质量
+   speex_encoder_ctl(stateEncode, SPEEX_SET_BITRATE, &bitrate); //设置了采样率为的结构
+   tmp=1;
+   speex_encoder_ctl(stateEncode, SPEEX_SET_VBR, &tmp); //是能VBR数据质量
+   tmp=1;
+   speex_encoder_ctl(stateEncode, SPEEX_SET_VAD, &tmp);//编码器静音检测
+   if (denoise_enabled || agc_enabled) //噪声和自动AGC
+   {
+      preprocess = speex_preprocess_state_init(frame_size, speexFrequency);
+      speex_preprocess_ctl(preprocess, SPEEX_PREPROCESS_SET_DENOISE, &denoise_enabled);
+      //speex_preprocess_ctl(preprocess, SPEEX_PREPROCESS_SET_AGC, &agc_enabled);
+   }
+
+    //初始化结构使他们保存数据
+
+    speex_bits_init(&bitsEncode);
+}
+#endif 
+
+
+
 #if SILK_AUDIO_CODEC //SILK启用
 #include <SILK/interface/SKP_Silk_SDK_API.h>
 /* Define codec specific settings */
@@ -37,12 +93,12 @@ FILE      *bitOutFile, *speechInFile;
 SKP_int32 encSizeBytes;
 void      *psEnc;
 /* default settings */
-SKP_int32 API_fs_Hz = 24000;
+SKP_int32 API_fs_Hz = 8000;
 SKP_int32 max_internal_fs_Hz = 0;
 SKP_int32 targetRate_bps = 25000;
 SKP_int32 packetSize_ms = 20;
 SKP_int32 frameSizeReadFromFile_ms = 20;
-SKP_int32 packetLoss_perc = 0, complexity_mode = 2, smplsSinceLastPacket;
+SKP_int32 packetLoss_perc = 0, complexity_mode = 0, smplsSinceLastPacket;
 SKP_int32 INBandFEC_enabled = 0, DTX_enabled = 0, quiet = 0;
 SKP_SILK_SDK_EncControlStruct encControl; // Struct for input to encoder
 
@@ -50,7 +106,7 @@ void init_silk_encoder()
 {    
     /* If no max internal is specified, set to minimum of API fs and 24 kHz */
     if( max_internal_fs_Hz == 0 ) {
-        max_internal_fs_Hz = 24000;
+        max_internal_fs_Hz = 8000;
         if( API_fs_Hz < max_internal_fs_Hz ) {
             max_internal_fs_Hz = API_fs_Hz;
         }
@@ -199,6 +255,14 @@ void * capture_audio_thread(void *para)
 {
     int fdsound = 0;
     int readbyte = 0;
+#if SPEEX_AUDIO_CODEC
+    char cbits[500];
+    int nbBytes;
+    void *state;
+    SpeexBits bits;
+    int tmp;
+#endif
+
 #if RECORD_CAPTURE_PCM
     FILE *fp = fopen("capture.pcm", "wb");
 #endif
@@ -210,6 +274,20 @@ void * capture_audio_thread(void *para)
 #if SILK_AUDIO_CODEC
     init_silk_encoder();//初始化silk codec
     printf("end of init silk encoder\n");
+#endif
+
+#if SPEEX_AUDIO_CODEC
+    /*Create a new encoder state in narrowband mode*/
+    state = speex_encoder_init(&speex_uwb_mode);
+
+    /*Set the quality to 8 (15 kbps)*/
+    tmp=8;
+    speex_encoder_ctl(state, SPEEX_SET_QUALITY, &tmp);
+
+    tmp=1;
+    speex_encoder_ctl(state, SPEEX_SET_VBR, &tmp); //是能VBR数据质量
+    /*Initialization of the structure that holds the bits*/
+   speex_bits_init(&bits);
 #endif
 
 #if (SOUND_INTERFACE == SOUND_OSS)
@@ -228,7 +306,7 @@ void * capture_audio_thread(void *para)
 
     while(flag_capture_audio)
     {
-        if((readbyte=read(fdsound, pWriteHeader->buffer, SAMPLERATE/1000*READMSFORONCE*sizeof(short))) < 0)
+        if((readbyte=read(fdsound, pWriteHeader->buffer_capture, SAMPLERATE/1000*READMSFORONCE*sizeof(short))) < 0)
         {
             perror("读声卡数据");
         }
@@ -237,11 +315,26 @@ void * capture_audio_thread(void *para)
             sem_post(&sem_capture);
             //printf("readbyte=%d\n", readbyte);
 #if RECORD_CAPTURE_PCM
-            fwrite(pWriteHeader->buffer, SAMPLERATE/1000*READMSFORONCE*sizeof(short), 1, fp);
+            fwrite(pWriteHeader->buffer_capture, SAMPLERATE/1000*READMSFORONCE*sizeof(short), 1, fp);
 #endif
             traceprintf("发送信号量 sem_capture\n");
             
             pWriteHeader->FrameNO = FrameNO++;
+
+
+
+#if SPEEX_AUDIO_CODEC
+            speex_bits_reset(&bits);
+
+            /*Encode the frame*/
+            speex_encode_int(state, pWriteHeader->buffer_capture, &bits);
+
+            /*Copy the bits to an array of char that can be written*/
+            nbBytes = speex_bits_write(&bits, cbits, 200);
+
+            printf("压缩后大小 %d\n", nbBytes);
+#endif
+
             printf("cNO:%d, readbyte=%d\n", pWriteHeader->FrameNO, readbyte);
             pthread_mutex_lock(&mutex_lock);
             n++;
@@ -291,7 +384,7 @@ void * capture_audio_thread(void *para)
                                          
     while(flag_capture_audio)
     {
-        rc = snd_pcm_readi(handle, pWriteHeader->buffer, frames);
+        rc = snd_pcm_readi(handle, pWriteHeader->buffer_capture, frames);
         printf("read rc=%d\n", rc);
         if (rc == -EPIPE) 
         {
@@ -309,11 +402,11 @@ void * capture_audio_thread(void *para)
         }
 
 #if RECORD_CAPTURE_PCM
-            fwrite(pWriteHeader->buffer, SAMPLERATE/1000*READMSFORONCE*sizeof(short), 1, fp);
+            fwrite(pWriteHeader->buffer_capture, SAMPLERATE/1000*READMSFORONCE*sizeof(short), 1, fp);
 #endif
 #if 0
 #if DEBUG_SAVE_CAPTURE_PCM
-        rc = fwrite(pWriteHeader->buffer, frames*sizeof(short), 1, fp);
+        rc = fwrite(pWriteHeader->buffer_capture, frames*sizeof(short), 1, fp);
         if(rc != 1)
         {
             fprintf(stderr, "write error %d\n", rc);
@@ -324,7 +417,7 @@ void * capture_audio_thread(void *para)
             /* max payload size */
             int nbBytes = MAX_BYTES_PER_FRAME * MAX_INPUT_FRAMES;
             /* Silk Encoder */
-            ret = SKP_Silk_SDK_Encode(psEnc, &encControl, pWriteHeader->buffer, (SKP_int16)SAMPLERATE/1000*READMSFORONCE, pWriteHeader->buffer_encode, &nbBytes);
+            ret = SKP_Silk_SDK_Encode(psEnc, &encControl, pWriteHeader->buffer_capture, (SKP_int16)SAMPLERATE/1000*READMSFORONCE, pWriteHeader->buffer_encode, &nbBytes);
             pWriteHeader->count = nbBytes;
             printf("ret=%d, nbBytes=%d\n", ret, nbBytes);
             if(ret) 
@@ -336,7 +429,7 @@ void * capture_audio_thread(void *para)
         sem_post(&sem_capture); 
         sem_post(&sem_capture);                     
         gettimeofday(&tv, &tz);
-        ((AUDIOBUFFER*)(pWriteHeader->buffer))->FrameNO = FrameNO++;
+        ((AUDIOBUFFER*)(pWriteHeader->buffer_capture))->FrameNO = FrameNO++;
         //((AUDIOBUFFER*)(pWriteHeader->buffer))->sec = tv.tv_sec;
         //((AUDIOBUFFER*)(pWriteHeader->buffer))->usec = tv.tv_usec;
         //printf("capture NO=%5d \n", FrameNO);
@@ -396,10 +489,10 @@ void * network_send_thread(void *p)
 #if SILK_AUDIO_CODEC
                 if(-1 == sendto(fdsocket, pReadHeader->buffer_encode, pReadHeader->count, 0, (struct sockaddr*)&dest_addr, socklen))
 #else
-                if(-1 == sendto(fdsocket, pReadHeader->buffer, sizeof(pReadHeader->buffer)+sizeof(int)+sizeof(int), 0, (struct sockaddr*)&dest_addr, socklen))
+                if(-1 == sendto(fdsocket, pReadHeader->buffer_capture, sizeof(pReadHeader->buffer_capture)+sizeof(int)+sizeof(int), 0, (struct sockaddr*)&dest_addr, socklen))
 #endif
 #elif TRAN_MODE==TCP_MODE
-                if(-1 == send(fdsocket, pReadHeader->buffer, sizeof(pReadHeader->buffer), 0))
+                if(-1 == send(fdsocket, pReadHeader->buffer_capture, sizeof(pReadHeader->buffer_capture), 0))
 #endif
                 {
                         perror("sendto");
@@ -407,7 +500,7 @@ void * network_send_thread(void *p)
                 else
                 {
 #if RECORD_SEND_PCM
-                        fwrite(pReadHeader->buffer, SAMPLERATE/1000*READMSFORONCE*sizeof(short), 1, fp);
+                        fwrite(pReadHeader->buffer_capture, SAMPLERATE/1000*READMSFORONCE*sizeof(short), 1, fp);
 #endif
                         traceprintf("n=%d\n", n);
                         //printf("    sNO:%d\n", pReadHeader->FrameNO);
@@ -457,7 +550,7 @@ void * network_recv_thread(void *p)
     {
         printf("recv\n");
         {      
-            result = recvfrom(fdsocket, pWriteHeader->buffer, sizeof(pWriteHeader->buffer)+sizeof(int)+sizeof(int), 
+            result = recvfrom(fdsocket, pWriteHeader->buffer_capture, sizeof(pWriteHeader->buffer_capture)+sizeof(int)+sizeof(int), 
                 0, (struct sockaddr*)&remote_addr, &socklen);
 
             if(result == -1)
@@ -586,6 +679,10 @@ int main(int argc, char **argv)
         return -1;
     }
     
+#if SPEEX_AUDIO_CODEC
+    SpeexEncoderInit();
+#endif
+
     pthread_mutex_init(&mutex_lock, NULL);
 
     if(strcmp("capture", argv[1])==0)
