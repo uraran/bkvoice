@@ -10,7 +10,7 @@
 #endif
 
 #define BUFFER_COUNT      10   //接收端缓冲区有该数量才允许播放
-#define SAMPLERATE     24000 //定义采样率
+#define SAMPLERATE     32000 //定义采样率
 #define READMSFORONCE     20 //采样周期(ms)
 
 #define UDP_MODE      0
@@ -19,7 +19,7 @@
 #define BUFFERNODECOUNT       1024 //链表节点个数
 
 #define RECORD_CAPTURE_PCM         1
-#define RECORD_SEND_PCM            1
+#define RECORD_SEND_PCM            0
 #define RECORD_RECV_PCM            0
 #define RECORD_PLAY_PCM            0
 
@@ -28,7 +28,7 @@
 struct AudioBuffer;
 typedef struct AudioBuffer
 {
-    unsigned char buffer[SAMPLERATE/1000*READMSFORONCE*sizeof(short)];
+    unsigned char buffer_capture[SAMPLERATE/1000*READMSFORONCE*sizeof(short)];//采集的原始数据
     int FrameNO;//包序号
 	  int time;//timestampe
 	  char SendNO;//
@@ -48,9 +48,10 @@ typedef struct AudioBuffer
 
 #define SOUND_OSS                1
 #define SOUND_ALSA               2
-#define SOUND_INTERFACE          SOUND_ALSA
+#define SOUND_INTERFACE          SOUND_OSS
 
 #define CHANNELS                 1
 
-#define SILK_AUDIO_CODEC         1
+#define SILK_AUDIO_CODEC         0
+#define SPEEX_AUDIO_CODEC        1
 #endif
