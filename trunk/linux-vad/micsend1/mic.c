@@ -264,7 +264,7 @@ void * capture_audio_thread(void *para)
     int tmp;
     SpeexPreprocessState *st;
     float f;
-    int vad;
+    //int vad;
 #endif
 
 #if RECORD_CAPTURE_PCM
@@ -357,7 +357,7 @@ void * capture_audio_thread(void *para)
 
 
 #if SPEEX_AUDIO_CODEC
-            vad = speex_preprocess_run(st, pWriteHeader->buffer_capture);
+            pWriteHeader->vad = speex_preprocess_run(st, pWriteHeader->buffer_capture);
 
             speex_bits_reset(&bits);
 
@@ -370,7 +370,7 @@ void * capture_audio_thread(void *para)
             //printf("压缩后大小 %d\n", pWriteHeader->count_encode);
 #endif
             time(&(pWriteHeader->time));
-            printf("cNO:%d, readbyte=%d,压缩后大小%d,vad=%d\n", pWriteHeader->FrameNO, readbyte, pWriteHeader->count_encode, vad);
+            printf("cNO:%d, readbyte=%d,压缩后大小%d,pWriteHeader->vad=%d\n", pWriteHeader->FrameNO, readbyte, pWriteHeader->count_encode, pWriteHeader->vad);
             pthread_mutex_lock(&mutex_lock);
             n++;
             pWriteHeader->Valid = 1;
