@@ -24,6 +24,7 @@
 #include <speex/speex_callbacks.h>
 #include <speex/speex_preprocess.h>
 
+#if 0
 /*保存编码的状态*/         
 void *stateEncode;   
 /*保存字节因此他们可以被speex常规读写*/
@@ -71,7 +72,7 @@ void SpeexEncoderInit(void)
     speex_bits_init(&bitsEncode);
 }
 #endif 
-
+#endif
 
 
 #if SILK_AUDIO_CODEC //SILK启用
@@ -257,10 +258,13 @@ void * capture_audio_thread(void *para)
     int readbyte = 0;
 #if SPEEX_AUDIO_CODEC
     char cbits[500];
-    int nbBytes;
+    //int nbBytes;
     void *state;
     SpeexBits bits;
     int tmp;
+    SpeexPreprocessState *st;
+    float f;
+    int vad;
 #endif
 
 #if RECORD_CAPTURE_PCM
@@ -277,6 +281,23 @@ void * capture_audio_thread(void *para)
 #endif
 
 #if SPEEX_AUDIO_CODEC
+   st = speex_preprocess_state_init(SAMPLERATE/1000*READMSFORONCE, SAMPLERATE);
+   tmp=1;
+   speex_preprocess_ctl(st, SPEEX_PREPROCESS_SET_DENOISE, &tmp);
+    tmp=1;
+   speex_preprocess_ctl(st, SPEEX_PREPROCESS_SET_VAD, &tmp);
+
+   tmp=0;
+   speex_preprocess_ctl(st, SPEEX_PREPROCESS_SET_AGC, &tmp);
+   tmp=8000;
+   speex_preprocess_ctl(st, SPEEX_PREPROCESS_SET_AGC_LEVEL, &tmp);
+   tmp=0;
+   speex_preprocess_ctl(st, SPEEX_PREPROCESS_SET_DEREVERB, &tmp);
+   f=.0;
+   speex_preprocess_ctl(st, SPEEX_PREPROCESS_SET_DEREVERB_DECAY, &f);
+   f=.0;
+   speex_preprocess_ctl(st, SPEEX_PREPROCESS_SET_DEREVERB_LEVEL, &f);
+
     /*Create a new encoder state in narrowband mode*/
     state = speex_encoder_init(&speex_uwb_mode);
 
@@ -336,18 +357,20 @@ void * capture_audio_thread(void *para)
 
 
 #if SPEEX_AUDIO_CODEC
+            vad = speex_preprocess_run(st, pWriteHeader->buffer_capture);
+
             speex_bits_reset(&bits);
 
             /*Encode the frame*/
             speex_encode_int(state, pWriteHeader->buffer_capture, &bits);
 
             /*Copy the bits to an array of char that can be written*/
-            nbBytes = speex_bits_write(&bits, cbits, 200);
+            pWriteHeader->count_encode = speex_bits_write(&bits, pWriteHeader->buffer_encode, 200);
 
-            printf("压缩后大小 %d\n", nbBytes);
+            //printf("压缩后大小 %d\n", pWriteHeader->count_encode);
 #endif
-
-            printf("cNO:%d, readbyte=%d\n", pWriteHeader->FrameNO, readbyte);
+            time(&(pWriteHeader->time));
+            printf("cNO:%d, readbyte=%d,压缩后大小%d,vad=%d\n", pWriteHeader->FrameNO, readbyte, pWriteHeader->count_encode, vad);
             pthread_mutex_lock(&mutex_lock);
             n++;
             pWriteHeader->Valid = 1;
@@ -479,6 +502,11 @@ void * capture_audio_thread(void *para)
 #if RECORD_CAPTURE_PCM
     fclose(fp);
 #endif
+
+#if SPEEX_AUDIO_CODEC
+speex_preprocess_state_destroy(st);
+#endif
+
     printf("音频采集线程已经关闭 audio capture thread is closed\n");
     return NULL;
 }
@@ -493,6 +521,7 @@ void remove_capture_audio(void)
 
 void * network_send_thread(void *p)
 {
+    int result;
 #if RECORD_SEND_PCM
     FILE *fp = fopen("send.pcm", "wb");
 #endif
@@ -512,10 +541,14 @@ void * network_send_thread(void *p)
                     continue;
                 }
 #if TRAN_MODE==UDP_MODE
-#if SILK_AUDIO_CODEC
-                if(-1 == sendto(fdsocket, pReadHeader->buffer_encode, pReadHeader->count, 0, (struct sockaddr*)&dest_addr, socklen))
+#if SILK_AUDIO_CODEC || SPEEX_AUDIO_CODEC
+                printf("发送%d,字节%d\n", pReadHeader->FrameNO, sizeof(int)*3 + sizeof(time_t) + pReadHeader->count_encode);
+                result = sendto(fdsocket, &(pReadHeader->FrameNO), sizeof(int)*3 + sizeof(time_t) + pReadHeader->count_encode, 0, (struct sockaddr*)&dest_addr, socklen);
+                printf("实际发送%d字节\n", result);
+                if(-1 == result)
 #else
-                if(-1 == sendto(fdsocket, pReadHeader->buffer_capture, sizeof(pReadHeader->buffer_capture)+sizeof(int)+sizeof(int), 0, (struct sockaddr*)&dest_addr, socklen))
+                result = sendto(fdsocket, pReadHeader->buffer_capture, sizeof(pReadHeader->buffer_capture)+sizeof(int)+sizeof(int), 0, (struct sockaddr*)&dest_addr, socklen);
+                if(-1 == result)
 #endif
 #elif TRAN_MODE==TCP_MODE
                 if(-1 == send(fdsocket, pReadHeader->buffer_capture, sizeof(pReadHeader->buffer_capture), 0))
@@ -706,7 +739,9 @@ int main(int argc, char **argv)
     }
     
 #if SPEEX_AUDIO_CODEC
+#if 0
     SpeexEncoderInit();
+#endif
 #endif
 
     pthread_mutex_init(&mutex_lock, NULL);
