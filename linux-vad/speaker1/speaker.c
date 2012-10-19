@@ -184,12 +184,12 @@ void * network_recv_thread(void *p)
 #else
 
 
-#if SILK_AUDIO_CODEC
+#if SILK_AUDIO_CODEC || SPEEX_AUDIO_CODEC
             if(p_recv_header->received == 0)
             {
-                result = recvfrom(fdsocket, p_recv_header->buffer_recv, sizeof(p_recv_header->buffer_recv)+sizeof(int)+sizeof(int), 0, (struct sockaddr*)&remote_addr, &socklen);
+                result = recvfrom(fdsocket, &(p_recv_header->FrameNO), sizeof(p_recv_header->buffer_recv)+sizeof(int)*3+sizeof(time_t), 0, (struct sockaddr*)&remote_addr, &socklen);
                 p_recv_header->count_recv = result;//实际字节数
-                //printf("p_recv_header->count_recv=%d, p_recv_header->No=%d\n", p_recv_header->count_recv, p_recv_header->No);
+                printf("p_recv_header->count_recv=%d, p_recv_header->No=%d, p_recv_header->FrameN0=%d, p_recv_header->vad=%d\n", p_recv_header->count_recv, p_recv_header->No, p_recv_header->FrameNO, p_recv_header->vad);
             }
 #else
             result = recvfrom(fdsocket, p_recv_header->buffer_recv, sizeof(p_recv_header->buffer_recv)+sizeof(int)+sizeof(int), 0, (struct sockaddr*)&remote_addr, &socklen);
@@ -219,16 +219,16 @@ void * network_recv_thread(void *p)
 
 
 
-                sem_post(&sem_recv);
-                sem_post(&sem_recv);
+                //sem_post(&sem_recv);
+                //sem_post(&sem_recv);
 #if SILK_AUDIO_CODEC
                 pthread_mutex_lock(&mutex_lock);
                 p_recv_header->received = 1;
                 n_recv++;
                 pthread_mutex_unlock(&mutex_lock);
                 p_recv_header = p_recv_header->pNext;
-                sem_post(&sem_recv);
-                sem_post(&sem_recv);
+                //sem_post(&sem_recv);
+                //sem_post(&sem_recv);
                 sem_post(&sem_recv);
 #else
                 traceprintf("收到数据 %d byte\n", result);
@@ -240,7 +240,7 @@ void * network_recv_thread(void *p)
                 pthread_mutex_unlock(&mutex_lock);
                 p_recv_header = p_recv_header->pNext;
                 sem_post(&sem_recv);
-                sem_post(&sem_recv);
+                //sem_post(&sem_recv);
 #endif
 
 
@@ -249,7 +249,7 @@ void * network_recv_thread(void *p)
 #if READFILE_SIMULATE_RCV
                 usleep(14*1000);
 #endif
-                sem_post(&sem_recv);
+                //sem_post(&sem_recv);
                 //printf("收到%d字节\n", result);
             }
         }
@@ -269,6 +269,10 @@ void remove_network_recv()
 //解码线程
 void* decode_audio_thread(void *p)
 {
+#if RECORD_DECODE_PCM
+    FILE* fp_decode = fopen("decode.pcm", "wb");
+#endif
+
 #if SILK_AUDIO_CODEC
     size_t    counter;
     SKP_int32 args, totPackets, i, k;
@@ -282,7 +286,7 @@ void* decode_audio_thread(void *p)
     SKP_int16 out[ ( ( FRAME_LENGTH_MS * MAX_API_FS_KHZ ) << 1 ) * MAX_INPUT_FRAMES ], *outPtr;
     char      speechOutFileName[ 150 ], bitInFileName[ 150 ];
     FILE      *bitInFile, *speechOutFile;
-    SKP_int32 API_Fs_Hz = 24000;
+    SKP_int32 API_Fs_Hz = 8000;
     SKP_int32 decSizeBytes;
     void      *psDec;
     float     loss_prob;
@@ -308,7 +312,7 @@ void* decode_audio_thread(void *p)
 
     /* Set the samplingrate that is requested for the output */
     if( API_Fs_Hz == 0 ) {
-        DecControl.API_sampleRate = 24000;
+        DecControl.API_sampleRate = 8000;
     } else {
         DecControl.API_sampleRate = API_Fs_Hz;
     }
@@ -350,11 +354,15 @@ void* decode_audio_thread(void *p)
             else
             {
                 p_decode_header->count_decode = length * sizeof(short);//解码后字节数量
-                //printf("解码正常, 输出%d字节,returned result=%d,p_decode_header->count_decode= %d,No=%d\n", length, result, p_decode_header->count_decode, p_decode_header->No);
+#if RECORD_DECODE_PCM
+                //FILE* fp_decode = fopen("decode.pcm", "wb");
+                fwrite(p_decode_header->buffer_decode, p_decode_header->count_decode, 1, fp_decode);
+#endif
+                printf("解码正常, 输出%d字节,returned result=%d,p_decode_header->count_decode= %d,No=%d,n_recv=%d,n_decode=%d\n", length, result, p_decode_header->count_decode, p_decode_header->No, n_recv, n_decode);
             }
 
-            sem_post(&sem_decode);
-            sem_post(&sem_decode);
+            //sem_post(&sem_decode);
+            //sem_post(&sem_decode);
 
             pthread_mutex_lock(&mutex_lock);
             n_recv--;
@@ -364,16 +372,21 @@ void* decode_audio_thread(void *p)
             pthread_mutex_unlock(&mutex_lock);
             p_decode_header = p_decode_header->pNext;
             sem_post(&sem_decode);
-            sem_post(&sem_decode);
-            sem_post(&sem_decode);
-            sem_post(&sem_decode);
-            sem_post(&sem_decode);
+            //sem_post(&sem_decode);
+            //sem_post(&sem_decode);
+            //sem_post(&sem_decode);
+            //sem_post(&sem_decode);
         }
 #endif
 
 
         sem_post(&sem_decode);//投递信号量
     }
+
+#if RECORD_DECODE_PCM
+    fclose(fp_decode);
+#endif
+         
 }
 
 //音频播放线程
@@ -452,6 +465,7 @@ void* play_audio_thread(void *para)
             }
             else
             {
+                printf("result=%d\n", result);
                 if(result != p_play_header->count_decode)
                 {   
                     printf("result=%d\n", result);
@@ -748,7 +762,7 @@ int main(int argc, char **argv)
         }
 
         printf("创建播放与接收线程\n");
-        iret2 = pthread_create(&pthread_t_play_audio, NULL, play_audio_thread, (void*) NULL);  
+        //iret2 = pthread_create(&pthread_t_play_audio, NULL, play_audio_thread, (void*) NULL);  
         iret2 = pthread_create(&pthread_t_network_recv, NULL, decode_audio_thread, (void*) NULL);    
         iret2 = pthread_create(&pthread_t_decode_audio, NULL, network_recv_thread, (void*) NULL);    
         //pthread_join(thread_play_audio, NULL);
