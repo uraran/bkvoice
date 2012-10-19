@@ -29,8 +29,7 @@ struct AudioBuffer;
 typedef struct AudioBuffer
 {
     unsigned char buffer_capture[SAMPLERATE/1000*READMSFORONCE*sizeof(short)];//采集的原始数据
-    int FrameNO;//包序号
-	  int time;//timestampe
+	  //int time;//timestampe
 	  char SendNO;//
     char Valid;//包是否有效
     char reserver0;//
@@ -39,7 +38,11 @@ typedef struct AudioBuffer
     char reserver3;//
     char reserver4;//
     char reserver5;//
-    int  count;//压缩后数据长度
+
+    int FrameNO;//包序号
+    time_t time;
+    int  vad;//1表示有语音，为0表示静音或者噪音
+    int  count_encode;//压缩后数据长度
     char buffer_encode[SAMPLERATE/1000*READMSFORONCE*sizeof(short)];//压缩后数据
     struct AudioBuffer  *pNext;
     //int count;//实际有效字节数量
@@ -48,7 +51,7 @@ typedef struct AudioBuffer
 
 #define SOUND_OSS                1
 #define SOUND_ALSA               2
-#define SOUND_INTERFACE          SOUND_ALSA
+#define SOUND_INTERFACE          SOUND_OSS
 
 #define CHANNELS                 1
 
