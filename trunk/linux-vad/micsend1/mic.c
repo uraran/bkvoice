@@ -290,12 +290,24 @@ void * capture_audio_thread(void *para)
    speex_bits_init(&bits);
 #endif
 
+
+
+
+
+
+
+
+
+
+
+
+
 #if (SOUND_INTERFACE == SOUND_OSS)
     fdsound = open("/dev/dsp", O_RDONLY);
     if(fdsound<0)
     {
        perror("以只写方式打开音频设备");
-       return;
+       //return;
     }    
 
     printf("设置读音频设备参数 setup capture audio device parament\n");
@@ -426,6 +438,20 @@ void * capture_audio_thread(void *para)
                 //break;
             }
 #endif
+
+
+#if SPEEX_AUDIO_CODEC
+            speex_bits_reset(&bits);
+
+            /*Encode the frame*/
+            speex_encode_int(state, pWriteHeader->buffer_capture, &bits);
+
+            /*Copy the bits to an array of char that can be written*/
+            nbBytes = speex_bits_write(&bits, cbits, 200);
+
+            printf("压缩后大小 %d\n", nbBytes);
+#endif
+
         sem_post(&sem_capture); 
         sem_post(&sem_capture);                     
         gettimeofday(&tv, &tz);
