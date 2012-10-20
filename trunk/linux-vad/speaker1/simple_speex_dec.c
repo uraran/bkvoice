@@ -4,10 +4,11 @@
 
 #define SOUND_OSS                1
 #define SOUND_ALSA               2
-#define SOUND_INTERFACE          SOUND_ALSA
+#define SOUND_INTERFACE          SOUND_ALSA  //选择声卡的驱动方式
 
-#define SAMPLERATE           32000
-#define CHANNELS                 1
+#define SAMPLERATE           32000  //采样率
+#define CHANNELS                 1  //通道数
+#define READMSFORONCE           20 //采样周期(ms)
 
 #if (SOUND_INTERFACE == SOUND_OSS)
 #include <sys/soundcard.h>
@@ -78,9 +79,9 @@ void init_alsa_play()
 
 		/* Two channels (stereo) 声道*/  
 		snd_pcm_hw_params_set_channels(handle, params, channels); 
-		/* 44100 bits/second sampling rate (CD quality) 采样率设置*/ 
+		/* 32000 bits/second sampling rate (CD quality) 采样率设置*/ 
 		snd_pcm_hw_params_set_rate_near(handle,params, &rate, &dir);  /* Set period size to 32 frames. */ 
-		frames = 640; 
+		frames = SAMPLERATE/1000*READMSFORONCE; 
 		snd_pcm_hw_params_set_period_size_near(handle, params, &frames, &dir);
 		/* Write the parameters to the driver */
 		 rc = snd_pcm_hw_params(handle, params);
@@ -140,7 +141,7 @@ void init_oss_play()
 
 
 /*The frame size in hardcoded for this sample code but it doesn't have to be*/
-#define FRAME_SIZE 640
+#define FRAME_SIZE    (SAMPLERATE/1000*READMSFORONCE)
 int main(int argc, char **argv)
 {
    char *outFile;
@@ -256,13 +257,13 @@ speex_bits_reset(&bitsDecode);
 
 
 #if (SOUND_INTERFACE == SOUND_OSS)
-      rc = write(fdsoundplay, out, 640*sizeof(short));
-      if(rc != 640*sizeof(short))
+      rc = write(fdsoundplay, out, (SAMPLERATE/1000*READMSFORONCE)*sizeof(short));
+      if(rc != (SAMPLERATE/1000*READMSFORONCE)*sizeof(short))
       {
           printf("写入数据长度与预期不符合\n");
       }
 #elif (SOUND_INTERFACE == SOUND_ALSA)
-      rc = snd_pcm_writei(handle, out, 640); 
+      rc = snd_pcm_writei(handle, out, (SAMPLERATE/1000*READMSFORONCE)); 
          //printf("%s: 99999\n", __func__);
 
             if (rc == -EPIPE) 
@@ -282,7 +283,7 @@ speex_bits_reset(&bitsDecode);
                     //return -1;
                 }                   
             }  
-            else if (rc != (int)640) 
+            else if (rc != (int)(SAMPLERATE/1000*READMSFORONCE)) 
             {
                 fprintf(stderr, "short write, write %d frames\n", rc);
             }
