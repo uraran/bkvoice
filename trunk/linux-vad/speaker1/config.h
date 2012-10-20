@@ -24,6 +24,7 @@
 #define RECORD_DECODE_PCM          1
 #define RECORD_PLAY_PCM            0
 #define RECORD_RECV_FILE           1 //是否把接收后的speex编码数据保存到文件
+#define RECORD_BEFORE_DECODE_FILE  1 //是否把解码前的speex编码数据保存到文件
 
 #define MAX_SEND_NO                6
 //char buffer[SAMPLERATE/1000*READMSFORONCE*sizeof(short)];
