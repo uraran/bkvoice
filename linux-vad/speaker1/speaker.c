@@ -454,7 +454,7 @@ void* decode_audio_thread(void *p)
             n_decode++;
             pthread_mutex_unlock(&mutex_lock);
             p_decode_header = p_decode_header->pNext;
-            //sem_post(&sem_decode);
+            sem_post(&sem_decode);
             //sem_post(&sem_decode);
             //sem_post(&sem_decode);
             //sem_post(&sem_decode);
@@ -646,7 +646,7 @@ void* play_audio_thread(void *para)
             if (rc == -EPIPE) 
             {
                 /* EPIPE means underrun */
-                fprintf(stderr, "underrun occurred\n");
+                fprintf(stderr, "underrun occurred buffer_count=%d, n_decode=%d\n", buffer_count, n_decode);
                 snd_pcm_prepare(handle);
             } 
             else if (rc < 0) 
