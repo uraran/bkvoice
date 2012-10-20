@@ -23,55 +23,6 @@
 #include <speex/speex_stereo.h>
 #include <speex/speex_callbacks.h>
 #include <speex/speex_preprocess.h>
-
-#if 0
-/*保存编码的状态*/         
-void *stateEncode;   
-/*保存字节因此他们可以被speex常规读写*/
-static SpeexBits bitsEncode;        
-static SpeexPreprocessState *preprocess = NULL;
-static int denoise_enabled=2, agc_enabled=2;
-spx_int32_t frame_size;       //缓冲去大小
-
-void SpeexEncoderInit(void)
-{
-    int i, tmp=10;//质量
-    int speexFrequency=SAMPLERATE; //编码器的采样率
-    const SpeexMode *mode=NULL;
-    spx_int32_t complexity=3; //编码复杂度
-    spx_int32_t bitrate=0;   //位采样率
-#if (SAMPLERATE == 8000)
-    mode = speex_lib_get_mode (SPEEX_MODEID_NB); //宽带编码
-#elif (SAMPLERATE == 16000)
-    mode = speex_lib_get_mode (SPEEX_MODEID_WB); //宽带编码
-#elif (SAMPLERATE == 32000)
-    mode = speex_lib_get_mode (SPEEX_MODEID_UWB); //宽带编码
-#endif
-   //新建一个新的编码状态在窄宽(narrowband)模式下
-   stateEncode = speex_encoder_init(mode);   //编码器
-   
-   speex_encoder_ctl(stateEncode, SPEEX_GET_FRAME_SIZE, &frame_size); //得到缓冲区大小
-   printf ("根据设置从speex编码器读出frame_size:%d, \n16bit深度下一次需要%d样本,一次处理%d字节\n",frame_size, frame_size, frame_size*2);
-   speex_encoder_ctl(stateEncode, SPEEX_SET_COMPLEXITY, &complexity); //编码复杂性
-   speex_encoder_ctl(stateEncode, SPEEX_SET_SAMPLING_RATE, &speexFrequency); //编码器实时设置采样率
-   speex_encoder_ctl(stateEncode, SPEEX_SET_QUALITY, &tmp);  //编码质量
-   speex_encoder_ctl(stateEncode, SPEEX_SET_BITRATE, &bitrate); //设置了采样率为的结构
-   tmp=1;
-   speex_encoder_ctl(stateEncode, SPEEX_SET_VBR, &tmp); //是能VBR数据质量
-   tmp=1;
-   speex_encoder_ctl(stateEncode, SPEEX_SET_VAD, &tmp);//编码器静音检测
-   if (denoise_enabled || agc_enabled) //噪声和自动AGC
-   {
-      preprocess = speex_preprocess_state_init(frame_size, speexFrequency);
-      speex_preprocess_ctl(preprocess, SPEEX_PREPROCESS_SET_DENOISE, &denoise_enabled);
-      //speex_preprocess_ctl(preprocess, SPEEX_PREPROCESS_SET_AGC, &agc_enabled);
-   }
-
-    //初始化结构使他们保存数据
-
-    speex_bits_init(&bitsEncode);
-}
-#endif 
 #endif
 
 
@@ -305,8 +256,12 @@ void * capture_audio_thread(void *para)
     tmp=8;
     speex_encoder_ctl(state, SPEEX_SET_QUALITY, &tmp);
 
+    //复杂度
+    tmp = 10;
+    speex_encoder_ctl(state, SPEEX_SET_COMPLEXITY, &tmp); 
+
     tmp=1;
-    speex_encoder_ctl(state, SPEEX_SET_VBR, &tmp); //是能VBR数据质量
+    speex_encoder_ctl(state, SPEEX_SET_VBR, &tmp); //使能VBR数据质量
     /*Initialization of the structure that holds the bits*/
    speex_bits_init(&bits);
 #endif
@@ -357,8 +312,10 @@ void * capture_audio_thread(void *para)
 
 
 #if SPEEX_AUDIO_CODEC
-            pWriteHeader->vad = speex_preprocess_run(st, pWriteHeader->buffer_capture);
 
+#if 0
+            pWriteHeader->vad = speex_preprocess_run(st, pWriteHeader->buffer_capture);
+#endif
             speex_bits_reset(&bits);
 
             /*Encode the frame*/

@@ -19,6 +19,11 @@
 
 #if SILK_AUDIO_CODEC
 #include <SILK/interface/SKP_Silk_SDK_API.h>
+#elif SPEEX_AUDIO_CODEC
+#include <speex/speex.h>
+#include <speex/speex_stereo.h>
+#include <speex/speex_callbacks.h>
+#include <speex/speex_preprocess.h>
 #endif
 
 
@@ -189,7 +194,7 @@ void * network_recv_thread(void *p)
             {
                 result = recvfrom(fdsocket, &(p_recv_header->FrameNO), sizeof(p_recv_header->buffer_recv)+sizeof(int)*3+sizeof(time_t), 0, (struct sockaddr*)&remote_addr, &socklen);
                 p_recv_header->count_recv = result;//实际字节数
-                printf("p_recv_header->count_recv=%d, p_recv_header->No=%d, p_recv_header->FrameN0=%d, p_recv_header->vad=%d\n", p_recv_header->count_recv, p_recv_header->No, p_recv_header->FrameNO, p_recv_header->vad);
+                printf("p_recv_header->count_recv=%d, p_recv_header->No=%d, p_recv_header->FrameN0=%d, p_recv_header->vad=%d, p_recv_header->count_encode=%d\n", p_recv_header->count_recv, p_recv_header->No, p_recv_header->FrameNO, p_recv_header->vad, p_recv_header->count_encode);
             }
 #else
             result = recvfrom(fdsocket, p_recv_header->buffer_recv, sizeof(p_recv_header->buffer_recv)+sizeof(int)+sizeof(int), 0, (struct sockaddr*)&remote_addr, &socklen);
@@ -335,33 +340,86 @@ void* decode_audio_thread(void *p)
 
     totPackets = 0;
     payloadEnd = payload;
+#elif SPEEX_AUDIO_CODEC
+    int i;
+    int result, length, tot_len;
+    #if (X86 || ARM1176)
+    static float output[FRAME_SIZE*CHANNELS];//speex codec 需要的数据
+    #endif
+    /*保存编码的状态*/         
+    static void *stateDecode; 
+   /*保存字节因此他们可以被speex常规读写*/
+    static SpeexBits bitsDecode;
+   //模式寄存器
+    static const SpeexMode *mode=NULL;
+   //解码器的采样频率
+    static int speexFrequency = SAMPLERATE; //编码器的采样率
+   /*得到的缓冲区的大小*/  
+    static spx_int32_t frame_size; 
+   /*得到的缓冲区的大小*/
+   static int channe = CHANNELS;
+    /*得到是立体声*/
+    static SpeexStereoState stereo = SPEEX_STEREO_STATE_INIT; //单声到 立体声
+
+   /* 初始话IP端口结构*/
+#if (SAMPLERATE == 8000)
+    mode = speex_lib_get_mode (SPEEX_MODEID_NB); //宽带编码
+#elif (SAMPLERATE == 16000)
+    mode = speex_lib_get_mode (SPEEX_MODEID_WB); //宽带编码
+#elif (SAMPLERATE == 32000)
+    mode = speex_lib_get_mode (SPEEX_MODEID_UWB); //宽带编码
+#endif
+    //mode = speex_lib_get_mode (SPEEX_MODEID_UWB); //在宽带模式解码
+
+
+    stateDecode = speex_decoder_init(mode);      //新建一个解码器 
+
+    speex_encoder_ctl(stateDecode, SPEEX_GET_FRAME_SIZE, &frame_size); //得到缓冲区大小
+
+    speex_decoder_ctl(stateDecode, SPEEX_SET_SAMPLING_RATE, &speexFrequency); //设置解码器的采样频率
+
+    speex_bits_init(&bitsDecode); //初始解码器
 #endif
 
     while(flag_decode_audio)
     {
         sem_wait(&sem_recv);//等待信号量
+        //printf("等到 sem_recv\n");
 
 
-#if SILK_AUDIO_CODEC
-        if((n_recv > 0) && (p_decode_header->received ==1))
+        if((n_recv > 3) && (p_decode_header->received ==1))
         {
+#if SILK_AUDIO_CODEC
             /* Decode 20 ms */
             result = SKP_Silk_SDK_Decode(psDec, &DecControl, 0, p_decode_header->buffer_recv, p_decode_header->count_recv, (p_decode_header->buffer_decode), &length);
+            p_decode_header->count_decode = length * sizeof(short);//解码后字节数量
+#elif SPEEX_AUDIO_CODEC
+            //接收的到的数据
+            speex_bits_reset(&bitsDecode); //复位一个位状态变量
+            //将编码数据如读入bits   
+            speex_bits_read_from(&bitsDecode, p_decode_header->buffer_recv, p_decode_header->count_encode); 
+            //对帧进行解码   
+            result = speex_decode_int(stateDecode, &bitsDecode, p_decode_header->buffer_decode); //result  (0 for no error, -1 for end of stream, -2 corrupt stream)
+            p_decode_header->count_decode = (SAMPLERATE/1000*READMSFORONCE*sizeof(short));
+#endif
+
+
+
+
             if( result ) 
             {
                 printf( "解码错误 returned result=%d,p_decode_header->count_recv= %d,No=%d\n", result, p_decode_header->count_recv, p_decode_header->No);
             }
             else
             {
-                p_decode_header->count_decode = length * sizeof(short);//解码后字节数量
 #if RECORD_DECODE_PCM
                 //FILE* fp_decode = fopen("decode.pcm", "wb");
                 fwrite(p_decode_header->buffer_decode, p_decode_header->count_decode, 1, fp_decode);
 #endif
-                printf("解码正常, 输出%d字节,returned result=%d,p_decode_header->count_decode= %d,No=%d,n_recv=%d,n_decode=%d\n", length, result, p_decode_header->count_decode, p_decode_header->No, n_recv, n_decode);
+                //printf("解码正常, 输出%d字节,returned result=%d,p_decode_header->count_decode= %d,No=%d,n_recv=%d,n_decode=%d\n", length, result, p_decode_header->count_decode, p_decode_header->No, n_recv, n_decode);
             }
 
-            //sem_post(&sem_decode);
+            sem_post(&sem_decode);
             //sem_post(&sem_decode);
 
             pthread_mutex_lock(&mutex_lock);
@@ -371,16 +429,18 @@ void* decode_audio_thread(void *p)
             n_decode++;
             pthread_mutex_unlock(&mutex_lock);
             p_decode_header = p_decode_header->pNext;
-            sem_post(&sem_decode);
+            //sem_post(&sem_decode);
             //sem_post(&sem_decode);
             //sem_post(&sem_decode);
             //sem_post(&sem_decode);
             //sem_post(&sem_decode);
         }
-#endif
 
 
-        sem_post(&sem_decode);//投递信号量
+
+
+
+        //sem_post(&sem_decode);//投递信号量
     }
 
 #if RECORD_DECODE_PCM
@@ -438,6 +498,7 @@ void* play_audio_thread(void *para)
     while(flag_play_audio)
     {
         sem_wait(&sem_decode);
+        //printf("等到sem_decode信号量\n");
         if(n_decode > BUFFER_COUNT)
         {
             if(!p_play_header->decoded)
@@ -465,7 +526,7 @@ void* play_audio_thread(void *para)
             }
             else
             {
-                printf("result=%d\n", result);
+                //printf("result=%d\n", result);
                 if(result != p_play_header->count_decode)
                 {   
                     printf("result=%d\n", result);
@@ -761,8 +822,14 @@ int main(int argc, char **argv)
             perror("Semaphore recv initialization failed");
         }
 
+        result = sem_init(&sem_decode, 0, 0);
+        if (result != 0)
+        {
+            perror("Semaphore recv initialization failed");
+        }
+
         printf("创建播放与接收线程\n");
-        //iret2 = pthread_create(&pthread_t_play_audio, NULL, play_audio_thread, (void*) NULL);  
+        iret2 = pthread_create(&pthread_t_play_audio, NULL, play_audio_thread, (void*) NULL);  
         iret2 = pthread_create(&pthread_t_network_recv, NULL, decode_audio_thread, (void*) NULL);    
         iret2 = pthread_create(&pthread_t_decode_audio, NULL, network_recv_thread, (void*) NULL);    
         //pthread_join(thread_play_audio, NULL);
