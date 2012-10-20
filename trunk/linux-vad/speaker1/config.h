@@ -10,7 +10,7 @@
 #endif
 
 #define BUFFER_COUNT      10   //接收端缓冲区有该数量才允许播放
-#define SAMPLERATE     8000 //定义采样率
+#define SAMPLERATE      32000 //定义采样率
 #define READMSFORONCE     20 //采样周期(ms)
 
 #define UDP_MODE      0
@@ -67,7 +67,7 @@ typedef struct AudioBuffer
 
 #define READFILE_SIMULATE_RCV    0 //读文件 模拟成网络数据接收，用于测试ALSA播放是否正常
 
-#define SILK_AUDIO_CODEC         1
+#define SILK_AUDIO_CODEC         0
 #define SPEEX_AUDIO_CODEC        1
 #define SERVER_PORT           9000
 #endif
