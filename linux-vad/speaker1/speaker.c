@@ -205,7 +205,7 @@ void * network_recv_thread(void *p)
                 fwrite(p_recv_header->buffer_recv, p_recv_header->count_recv, 1, fp_recv_codec);
 #endif
 
-                printf("p_recv_header->count_recv=%d, p_recv_header->No=%d, p_recv_header->FrameN0=%d, p_recv_header->vad=%d, p_recv_header->count_encode=%d\n", p_recv_header->count_recv, p_recv_header->No, p_recv_header->FrameNO, p_recv_header->vad, p_recv_header->count_encode);
+                //printf("p_recv_header->count_recv=%d, p_recv_header->No=%d, p_recv_header->FrameN0=%d, p_recv_header->vad=%d, p_recv_header->count_encode=%d\n", p_recv_header->count_recv, p_recv_header->No, p_recv_header->FrameNO, p_recv_header->vad, p_recv_header->count_encode);
             }
 #else
             result = recvfrom(fdsocket, p_recv_header->buffer_recv, sizeof(p_recv_header->buffer_recv)+sizeof(int)+sizeof(int), 0, (struct sockaddr*)&remote_addr, &socklen);
@@ -234,7 +234,7 @@ void * network_recv_thread(void *p)
 #endif
 
 
-
+                sem_post(&sem_decode);
                 //sem_post(&sem_recv);
                 //sem_post(&sem_recv);
 #if SILK_AUDIO_CODEC
@@ -445,7 +445,7 @@ void* decode_audio_thread(void *p)
             }
 
             sem_post(&sem_decode);
-            //sem_post(&sem_decode);
+            sem_post(&sem_decode);
 
             pthread_mutex_lock(&mutex_lock);
             n_recv--;
@@ -633,7 +633,7 @@ void* play_audio_thread(void *para)
         {
             buffer_count = 0;
         }
-        else if (n_decode < 1)
+        else if (n_decode < 2)
         {
             buffer_count = BUFFER_COUNT;
         }
