@@ -9,20 +9,20 @@
 #define traceprintf
 #endif
 
-#define BUFFER_COUNT      10   //接收端缓冲区有该数量才允许播放
+#define BUFFER_COUNT      100   //接收端缓冲区有该数量才允许播放
 #define SAMPLERATE      32000 //定义采样率
 #define READMSFORONCE     20 //采样周期(ms)
 
 #define UDP_MODE      0
 #define TCP_MODE      1
 #define TRAN_MODE     UDP_MODE
-#define BUFFERNODECOUNT       128 //链表节点个数
+#define BUFFERNODECOUNT       1280 //链表节点个数
 
 #define RECORD_CAPTURE_PCM         0
 #define RECORD_SEND_PCM            0
 #define RECORD_RECV_PCM            0
-#define RECORD_DECODE_PCM          1
-#define RECORD_PLAY_PCM            1
+#define RECORD_DECODE_PCM          0
+#define RECORD_PLAY_PCM            0
 #define RECORD_RECV_FILE           0 //是否把接收后的speex编码数据保存到文件
 #define RECORD_BEFORE_DECODE_FILE  0 //是否把解码前的speex编码数据保存到文件
 
