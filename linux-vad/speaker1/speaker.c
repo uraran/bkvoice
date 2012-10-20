@@ -294,6 +294,10 @@ void* decode_audio_thread(void *p)
     FILE* fp_decode = fopen("decode.pcm", "wb");
 #endif
 
+#if RECORD_BEFORE_DECODE_FILE
+    FILE* fp_before_decode = fopen("before_decode.bits", "wb");
+#endif
+
 #if SILK_AUDIO_CODEC
     size_t    counter;
     SKP_int32 args, totPackets, i, k;
@@ -359,9 +363,6 @@ void* decode_audio_thread(void *p)
 #elif SPEEX_AUDIO_CODEC
     int i;
     int result, length, tot_len;
-    #if (X86 || ARM1176)
-    static float output[FRAME_SIZE*CHANNELS];//speex codec 需要的数据
-    #endif
     /*保存编码的状态*/         
     static void *stateDecode; 
    /*保存字节因此他们可以被speex常规读写*/
@@ -373,9 +374,9 @@ void* decode_audio_thread(void *p)
    /*得到的缓冲区的大小*/  
     static spx_int32_t frame_size; 
    /*得到的缓冲区的大小*/
-   static int channe = CHANNELS;
+   //static int channe = CHANNELS;
     /*得到是立体声*/
-    static SpeexStereoState stereo = SPEEX_STEREO_STATE_INIT; //单声到 立体声
+    //static SpeexStereoState stereo = SPEEX_STEREO_STATE_INIT; //单声到 立体声
 
    /* 初始话IP端口结构*/
 #if (SAMPLERATE == 8000)
@@ -410,6 +411,14 @@ void* decode_audio_thread(void *p)
             result = SKP_Silk_SDK_Decode(psDec, &DecControl, 0, p_decode_header->buffer_recv, p_decode_header->count_recv, (p_decode_header->buffer_decode), &length);
             p_decode_header->count_decode = length * sizeof(short);//解码后字节数量
 #elif SPEEX_AUDIO_CODEC
+
+
+#if RECORD_BEFORE_DECODE_FILE
+                //把解码前的数据录成文件
+                fwrite(&(p_decode_header->count_recv), sizeof(int),1,  fp_before_decode);
+                fwrite(p_decode_header->buffer_recv, p_decode_header->count_recv, 1, fp_before_decode);
+#endif
+
             //接收的到的数据
             speex_bits_reset(&bitsDecode); //复位一个位状态变量
             //将编码数据如读入bits   
@@ -461,6 +470,10 @@ void* decode_audio_thread(void *p)
 
 #if RECORD_DECODE_PCM
     fclose(fp_decode);
+#endif
+
+#if RECORD_BEFORE_DECODE_FILE
+    fclose(fp_before_decode);
 #endif
          
 }
