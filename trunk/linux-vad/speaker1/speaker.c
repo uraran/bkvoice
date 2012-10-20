@@ -487,18 +487,7 @@ void* play_audio_thread(void *para)
     time_t timep;
     struct tm *p;
     int result;
-#if VAD_ENABLED
-  	VadVars *vadstate;
-  	int vad;
-  	int nZeroPackageCount;
-    float indata[256];
-    int i;
-#endif
 
-
-#if VAD_ENABLED
-  	wb_vad_init(&(vadstate));
-#endif
 
 #if RECORD_PLAY_PCM 
     FILE * fp = fopen("play.pcm", "wb");
@@ -568,7 +557,11 @@ void* play_audio_thread(void *para)
                 pthread_mutex_unlock(&mutex_lock);
 
 #if RECORD_PLAY_PCM 
-                fwrite(p_play_header->buffer_decode, p_play_header->count_decode, 1, fp);
+                result = fwrite(p_play_header->buffer_decode, p_play_header->count_decode, 1, fp);
+                if(result != p_play_header->count_decode)
+                {
+                    printf("写入数据长度与预期不符\n");
+                }
 #endif
                 p_play_header = p_play_header->pNext;
             }
@@ -671,26 +664,6 @@ void* play_audio_thread(void *para)
             {
                 fprintf(stderr, "short write, write %d frames\n", rc);
             }
-
-#if VAD_ENABLED
-            signed short * precdata = (signed short*)(&(p_play_header->buffer_decode[0]));
-
-				    for(i=0;i<256;i++)		//??????
-				    {
-						    indata[i]= (float)(precdata[i]);
-				    }
-      			vad = wb_vad(vadstate,indata);	//??vad??
-				    //vad =1;//
-            printf("vad=%d,nZeroPackageCount=%d,n=%d\n", vad, nZeroPackageCount, n);
-				    if(vad == 1)
-				    {
-					    nZeroPackageCount = 0;
-				    }
-				    else
-				    {
-					    nZeroPackageCount++;
-				    }
-#endif
 
 
 
