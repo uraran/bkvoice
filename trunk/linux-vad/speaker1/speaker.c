@@ -116,6 +116,11 @@ void * network_recv_thread(void *p)
     int result;
     int socklen;
     int fdsocket;
+
+#if RECORD_RECV_FILE
+    FILE* fp_recv_codec = fopen("recv.bits", "wb");
+#endif
+
 #if READFILE_SIMULATE_RCV
     FILE *fptest = fopen("play.pcm", "rb");
 #endif
@@ -194,6 +199,12 @@ void * network_recv_thread(void *p)
             {
                 result = recvfrom(fdsocket, &(p_recv_header->FrameNO), sizeof(p_recv_header->buffer_recv)+sizeof(int)*3+sizeof(time_t), 0, (struct sockaddr*)&remote_addr, &socklen);
                 p_recv_header->count_recv = result;//实际字节数
+
+#if RECORD_RECV_FILE
+                fwrite(&(p_recv_header->count_recv), sizeof(int),1,  fp_recv_codec);
+                fwrite(p_recv_header->buffer_recv, p_recv_header->count_recv, 1, fp_recv_codec);
+#endif
+
                 printf("p_recv_header->count_recv=%d, p_recv_header->No=%d, p_recv_header->FrameN0=%d, p_recv_header->vad=%d, p_recv_header->count_encode=%d\n", p_recv_header->count_recv, p_recv_header->No, p_recv_header->FrameNO, p_recv_header->vad, p_recv_header->count_encode);
             }
 #else
@@ -262,6 +273,11 @@ void * network_recv_thread(void *p)
 #if RECORD_RECV_PCM 
     fclose(fp);
 #endif    
+
+#if RECORD_RECV_FILE
+    fclose(fp_recv_codec);
+#endif
+
     printf("数据接收线程已经关闭 data recv thread is closed\n");
     close(fdsocket);    
 }
