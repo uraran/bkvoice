@@ -11,7 +11,7 @@
 
 #define BUFFER_COUNT      10   //接收端缓冲区有该数量才允许播放
 #define SAMPLERATE     32000 //定义采样率
-#define READMSFORONCE     20 //采样周期(ms)
+#define READMSFORONCE     20 //采样周期(ms) speex,silk采样周期基本都是20ms
 
 #define UDP_MODE      0
 #define TCP_MODE      1
@@ -22,7 +22,7 @@
 #define RECORD_SEND_PCM            0
 #define RECORD_RECV_PCM            0
 #define RECORD_PLAY_PCM            0
-
+#define RECORD_ENCODE_FILE         1 //是否把编码后的数据保存到文件
 #define MAX_SEND_NO                6
 //char buffer[SAMPLERATE/1000*READMSFORONCE*sizeof(short)];
 struct AudioBuffer;
