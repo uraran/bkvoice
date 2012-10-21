@@ -337,7 +337,16 @@ int main( int argc, char* argv[] )
         else if(readfrom == READ_FROM_MIC)
         {
             counter = read(soundfd, in, sizeof( SKP_int16 ) * ( frameSizeReadFromFile_ms * API_fs_Hz ) / 1000);
-            printf("读入counter=%d字节\n", counter);
+            if(counter == (sizeof( SKP_int16 ) * ( frameSizeReadFromFile_ms * API_fs_Hz ) / 1000))
+            {
+                printf("读入counter=%d字节\n", counter);
+            }
+            else
+            {
+                printf("读入字节数与预期不匹配, counter=%d,sizeof( SKP_int16 ) * ( frameSizeReadFromFile_ms * API_fs_Hz ) / 1000=%d\n", 
+                    counter, sizeof( SKP_int16 ) * ( frameSizeReadFromFile_ms * API_fs_Hz ) / 1000);
+            }
+
 #if SAVE_RECORD_FILE
             fwrite(in,  sizeof( SKP_int16 ), ( frameSizeReadFromFile_ms * API_fs_Hz ) / 1000, fp_record);
 #endif  
@@ -358,7 +367,7 @@ int main( int argc, char* argv[] )
 
 #if READ_FROM_AUDIO_DEVICE_AS_PCMFILE
         loop_count++;
-        if(loop_count > 50*3)
+        if(loop_count > 50*10)
         {
             break;
         }

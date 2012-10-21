@@ -34,6 +34,13 @@ chmod +x configure
 ./configure --prefix=$SDK_DIR --enable-shared --enable-static
 make -j5
 make install
+mkdir $SDK_DIR/bin
+cp -f jrtplib-3.7.1/examples/example1 $SDK_DIR/bin
+cp -f jrtplib-3.7.1/examples/example2 $SDK_DIR/bin
+cp -f jrtplib-3.7.1/examples/example3 $SDK_DIR/bin
+cp -f jrtplib-3.7.1/examples/example4 $SDK_DIR/bin
+cp -f jrtplib-3.7.1/examples/example5 $SDK_DIR/bin
+
 popd
 
 

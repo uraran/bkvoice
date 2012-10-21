@@ -31,7 +31,7 @@ PARAMS=8_kHz_40_ms_12_kbps
 
 # 8 kHz, 20 ms, 20 kbps, 10% packet loss, FEC
 PARAMS=8_kHz_20_ms_20_kbps_10_loss_FEC
-./${DEC} ${BITSTREAMPATH}payload_${PARAMS}.bit tmp.pcm -loss 10
+./${DEC} ${BITSTREAMPATH}payload_${PARAMS}.bit tmp.pcm -loss 30
 ./${COMP} ${OUTPUTPATH}testvector_output_${PARAMS}.pcm tmp.pcm >> test_decoder_report.txt
 
 
@@ -64,7 +64,7 @@ PARAMS=12_kHz_40_ms_16_kbps
 
 # 12 kHz, 20 ms, 24 kbps, 10% packet loss, FEC
 PARAMS=12_kHz_20_ms_24_kbps_10_loss_FEC
-./${DEC} ${BITSTREAMPATH}payload_${PARAMS}.bit tmp.pcm -loss 10
+./${DEC} ${BITSTREAMPATH}payload_${PARAMS}.bit tmp.pcm -loss 30
 ./${COMP} ${OUTPUTPATH}testvector_output_${PARAMS}.pcm tmp.pcm >> test_decoder_report.txt
 
 
@@ -85,7 +85,7 @@ PARAMS=16_kHz_40_ms_20_kbps
 
 # 16 kHz, 20 ms, 32 kbps, 10% packet loss, FEC
 PARAMS=16_kHz_20_ms_32_kbps_10_loss_FEC
-./${DEC} ${BITSTREAMPATH}payload_${PARAMS}.bit tmp.pcm -loss 10
+./${DEC} ${BITSTREAMPATH}payload_${PARAMS}.bit tmp.pcm -loss 30
 ./${COMP} ${OUTPUTPATH}testvector_output_${PARAMS}.pcm tmp.pcm >> test_decoder_report.txt
 
 
@@ -103,7 +103,7 @@ PARAMS=24_kHz_40_ms_24_kbps
 
 # 24 kHz, 20 ms, 40 kbps, 10% packet loss, FEC
 PARAMS=24_kHz_20_ms_40_kbps_10_loss_FEC
-./${DEC} ${BITSTREAMPATH}payload_${PARAMS}.bit tmp.pcm -loss 10
+./${DEC} ${BITSTREAMPATH}payload_${PARAMS}.bit tmp.pcm -loss 30
 ./${COMP} ${OUTPUTPATH}testvector_output_${PARAMS}.pcm tmp.pcm >> test_decoder_report.txt
 
 

@@ -34,8 +34,8 @@ int main(void)
     s.SetEMailInterval(5);  
     s.SetNoteInterval(2);  
   
-    status = s.AddDestination(RTPIPv4Address(ntohl(inet_addr("127.0.0.1")),5000));  
-    status = s.AddDestination(RTPIPv4Address(ntohl(inet_addr("127.0.0.1")),7000));  
+    status = s.AddDestination(RTPIPv4Address(ntohl(inet_addr("192.168.2.115")),5000));  
+    //status = s.AddDestination(RTPIPv4Address(ntohl(inet_addr("127.0.0.1")),7000));  
   
     int snd = open("/dev/dsp",O_RDWR);  
     int val;  
@@ -54,7 +54,7 @@ int main(void)
     {  
         if (i == 1000)  
         {  
-            std::cout <<"Disabling note" << std::endl;  
+            //std::cout <<"Disabling note" << std::endl;  
             s.SetNoteInterval(0);  
         }  
         uint8_t data[PACKSIZE];   
