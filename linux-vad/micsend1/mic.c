@@ -266,7 +266,7 @@ void * capture_audio_thread(void *para)
             pWriteHeader->FrameNO = FrameNO++;
 
             time(&(pWriteHeader->time));
-            printf("cNO:%d, readbyte=%d,压缩后大小%d,pWriteHeader->vad=%d\n", pWriteHeader->FrameNO, readbyte, pWriteHeader->count_encode, pWriteHeader->vad);
+            //printf("cNO:%d, readbyte=%d,压缩后大小%d,pWriteHeader->vad=%d\n", pWriteHeader->FrameNO, readbyte, pWriteHeader->count_encode, pWriteHeader->vad);
             pthread_mutex_lock(&mutex_lock);
             n++;
             pWriteHeader->Valid = 1;
@@ -416,9 +416,28 @@ void remove_capture_audio(void)
 
 
 
+#if DIRECT_SEND_SPEEX_BITS
+void * network_send_bits_thread(void *p)
+{
+    FILE *fp_bits = fopen("/tftpboot/send.bits", "rb");
+    int nbytes;
 
+    while(1)
+    {
+        fread(&nbytes, sizeof(int), 1, fp_bits);
+        fread(&(pReadHeader->buffer_encode), nbytes, 1, fp_bits);
+        
+        pReadHeader->count_encode = nbytes;
 
+        printf("读出%d字节\n", nbytes);
 
+        socklen_t socklen;
+        socklen = sizeof(struct sockaddr);
+        int result = sendto(fdsocket, &(pReadHeader->FrameNO), sizeof(int)*3 + sizeof(time_t) + pReadHeader->count_encode, 0, (struct sockaddr*)&dest_addr, socklen);
+        usleep(18*999);
+    }
+}
+#endif
 
 
 void * network_send_thread(void *p)
@@ -442,11 +461,11 @@ void * network_send_thread(void *p)
     tmp=1;
    speex_preprocess_ctl(st, SPEEX_PREPROCESS_SET_VAD, &tmp);
 
-   tmp=0;
+   tmp=1;
    speex_preprocess_ctl(st, SPEEX_PREPROCESS_SET_AGC, &tmp);
    tmp=8000;
    speex_preprocess_ctl(st, SPEEX_PREPROCESS_SET_AGC_LEVEL, &tmp);
-   tmp=0;
+   tmp=1;
    speex_preprocess_ctl(st, SPEEX_PREPROCESS_SET_DEREVERB, &tmp);
    f=.0;
    speex_preprocess_ctl(st, SPEEX_PREPROCESS_SET_DEREVERB_DECAY, &f);
@@ -508,7 +527,7 @@ void * network_send_thread(void *p)
 
             /*Copy the bits to an array of char that can be written*/
             pReadHeader->count_encode = speex_bits_write(&bits, pReadHeader->buffer_encode, 200);
-            printf("压缩后大小 %d\n", pReadHeader->count_encode);
+            //printf("压缩后大小 %d\n", pReadHeader->count_encode);
 #if RECORD_ENCODE_FILE
             fwrite(&(pReadHeader->count_encode), sizeof(int), 1, fp_encode); 
             fwrite(pReadHeader->buffer_encode, pReadHeader->count_encode, 1, fp_encode);
@@ -519,9 +538,9 @@ void * network_send_thread(void *p)
 
 #if TRAN_MODE==UDP_MODE
 #if SILK_AUDIO_CODEC || SPEEX_AUDIO_CODEC
-                printf("发送%d,字节%d\n", pReadHeader->FrameNO, sizeof(int)*3 + sizeof(time_t) + pReadHeader->count_encode);
+                //printf("发送%d,字节%d\n", pReadHeader->FrameNO, sizeof(int)*3 + sizeof(time_t) + pReadHeader->count_encode);
                 result = sendto(fdsocket, &(pReadHeader->FrameNO), sizeof(int)*3 + sizeof(time_t) + pReadHeader->count_encode, 0, (struct sockaddr*)&dest_addr, socklen);
-                printf("pReadHeader->count_encode=%d, 实际发送%d字节\n", pReadHeader->count_encode, result);
+                //printf("pReadHeader->count_encode=%d, 实际发送%d字节\n", pReadHeader->count_encode, result);
                 if(-1 == result)
 #else
                 result = sendto(fdsocket, pReadHeader->buffer_capture, sizeof(pReadHeader->buffer_capture)+sizeof(int)+sizeof(int), 0, (struct sockaddr*)&dest_addr, socklen);
@@ -828,10 +847,14 @@ int main(int argc, char **argv)
         }
 
         printf("创建发送与采集线程\n");
+
+#if DIRECT_SEND_SPEEX_BITS
+            iret1 = pthread_create(&thread_network_send, NULL, network_send_bits_thread, (void*) NULL);
+#else
             iret1 = pthread_create(&thread_capture_audio, NULL, capture_audio_thread, (void*) NULL);
             iret1 = pthread_create(&thread_network_send, NULL, network_send_thread, (void*) NULL);
-            
-            iret1 = pthread_create(&thread_network_recv, NULL, network_recv_thread, (void*) NULL);
+#endif       
+            //iret1 = pthread_create(&thread_network_recv, NULL, network_recv_thread, (void*) NULL);
         //pthread_join(thread_capture_audio, NULL);
         //pthread_join(thread_network_send, NULL);
     }

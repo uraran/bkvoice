@@ -18,7 +18,7 @@
 #define TRAN_MODE     UDP_MODE
 #define BUFFERNODECOUNT       1024 //链表节点个数
 
-#define RECORD_CAPTURE_PCM         1
+#define RECORD_CAPTURE_PCM         0
 #define RECORD_SEND_PCM            0
 #define RECORD_RECV_PCM            0
 #define RECORD_PLAY_PCM            0
@@ -57,4 +57,6 @@ typedef struct AudioBuffer
 
 #define SILK_AUDIO_CODEC         0
 #define SPEEX_AUDIO_CODEC        1
+
+#define DIRECT_SEND_SPEEX_BITS   0 //直接发送编码好的文件
 #endif

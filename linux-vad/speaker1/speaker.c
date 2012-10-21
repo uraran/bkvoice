@@ -195,6 +195,7 @@ void * network_recv_thread(void *p)
 
 
 #if SILK_AUDIO_CODEC || SPEEX_AUDIO_CODEC
+            printf("n_recv=%d, n_decode=%d\n", n_recv, n_decode);
             if(p_recv_header->received == 0)
             {
                 result = recvfrom(fdsocket, &(p_recv_header->FrameNO), sizeof(p_recv_header->buffer_recv)+sizeof(int)*3+sizeof(time_t), 0, (struct sockaddr*)&remote_addr, &socklen);
@@ -206,6 +207,10 @@ void * network_recv_thread(void *p)
 #endif
 
                 //printf("p_recv_header->count_recv=%d, p_recv_header->No=%d, p_recv_header->FrameN0=%d, p_recv_header->vad=%d, p_recv_header->count_encode=%d\n", p_recv_header->count_recv, p_recv_header->No, p_recv_header->FrameNO, p_recv_header->vad, p_recv_header->count_encode);
+            }
+            else
+            {
+                printf("p_recv_header->received != 0\n");
             }
 #else
             result = recvfrom(fdsocket, p_recv_header->buffer_recv, sizeof(p_recv_header->buffer_recv)+sizeof(int)+sizeof(int), 0, (struct sockaddr*)&remote_addr, &socklen);
@@ -235,6 +240,7 @@ void * network_recv_thread(void *p)
 
 
                 sem_post(&sem_decode);
+                sem_post(&sem_decode);
                 //sem_post(&sem_recv);
                 //sem_post(&sem_recv);
 #if SILK_AUDIO_CODEC
@@ -263,7 +269,7 @@ void * network_recv_thread(void *p)
 
 
 #if READFILE_SIMULATE_RCV
-                usleep(14*1000);
+                //usleep(14*1000);
 #endif
                 //sem_post(&sem_recv);
                 //printf("收到%d字节\n", result);
@@ -373,6 +379,11 @@ void* decode_audio_thread(void *p)
     static int speexFrequency = SAMPLERATE; //编码器的采样率
    /*得到的缓冲区的大小*/  
     static spx_int32_t frame_size; 
+
+#if HAVE_FPU
+    float output[SAMPLERATE/1000*READMSFORONCE];
+#endif
+
    /*得到的缓冲区的大小*/
    //static int channe = CHANNELS;
     /*得到是立体声*/
@@ -404,7 +415,7 @@ void* decode_audio_thread(void *p)
         //printf("等到 sem_recv\n");
 
 
-        if((n_recv > 3) && (p_decode_header->received ==1))
+        if((n_recv > 0) && (p_decode_header->received ==1))
         {
 #if SILK_AUDIO_CODEC
             /* Decode 20 ms */
@@ -423,9 +434,22 @@ void* decode_audio_thread(void *p)
             speex_bits_reset(&bitsDecode); //复位一个位状态变量
             //将编码数据如读入bits   
             speex_bits_read_from(&bitsDecode, p_decode_header->buffer_recv, p_decode_header->count_encode); 
+
+#if HAVE_FPU
+            result = speex_decode(stateDecode, &bitsDecode, output);
+            for(i=0;i<SAMPLERATE/1000*READMSFORONCE;i++)
+            {
+                ((short*)(&(p_decode_header->buffer_decode)))[i] = output[i];
+            } 
+#else
             //对帧进行解码   
             result = speex_decode_int(stateDecode, &bitsDecode, p_decode_header->buffer_decode); //result  (0 for no error, -1 for end of stream, -2 corrupt stream)
+#endif
+
             p_decode_header->count_decode = (SAMPLERATE/1000*READMSFORONCE*sizeof(short));
+
+
+
 #endif
 
 
@@ -444,8 +468,8 @@ void* decode_audio_thread(void *p)
                 //printf("解码正常, 输出%d字节,returned result=%d,p_decode_header->count_decode= %d,No=%d,n_recv=%d,n_decode=%d\n", length, result, p_decode_header->count_decode, p_decode_header->No, n_recv, n_decode);
             }
 
-            sem_post(&sem_decode);
-            sem_post(&sem_decode);
+            //sem_post(&sem_decode);
+            //sem_post(&sem_decode);
 
             pthread_mutex_lock(&mutex_lock);
             n_recv--;
@@ -455,6 +479,22 @@ void* decode_audio_thread(void *p)
             pthread_mutex_unlock(&mutex_lock);
             p_decode_header = p_decode_header->pNext;
             sem_post(&sem_decode);
+
+#if 0
+            if(n_decode < 1)
+            {
+                p_decode_header->received = 0;
+                p_decode_header->decoded = 1;
+                n_decode++;
+                result = speex_decode_int(stateDecode, &bitsDecode, p_decode_header->buffer_decode); 
+                p_decode_header->count_decode = (SAMPLERATE/1000*READMSFORONCE*sizeof(short));
+                sem_post(&sem_decode);
+
+                p_decode_header = p_decode_header->pNext;
+            }
+#endif
+
+
             //sem_post(&sem_decode);
             //sem_post(&sem_decode);
             //sem_post(&sem_decode);
@@ -516,8 +556,23 @@ void* play_audio_thread(void *para)
     while(flag_play_audio)
     {
         sem_wait(&sem_decode);
+
+        int buffer_count;
+        if(n_decode >= BUFFER_COUNT)
+        {
+            buffer_count = 0;
+        }
+        else if (n_decode == 0)
+        {
+            buffer_count = BUFFER_COUNT;
+        }/*
+        else
+        {
+            buffer_count = 0;
+        }
+*/
         //printf("等到sem_decode信号量\n");
-        if(n_decode > BUFFER_COUNT)
+        if(n_decode > buffer_count)
         {
             if(!p_play_header->decoded)
             { 
@@ -566,8 +621,13 @@ void* play_audio_thread(void *para)
                 p_play_header = p_play_header->pNext;
             }
         }
+        else
+        {
+            printf("n_decode=%d <= buffer_count=%d,n_recv=%d,不写声卡\n", n_decode, buffer_count, n_recv);
+        }
         //fwrite(buffer, sizeof(buffer), 1, fprecord);
     }
+
 
     close(fdsoundplay);
 #elif (SOUND_INTERFACE == SOUND_ALSA)

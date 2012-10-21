@@ -9,7 +9,7 @@
 #define traceprintf
 #endif
 
-#define BUFFER_COUNT      100   //接收端缓冲区有该数量才允许播放
+#define BUFFER_COUNT      10   //接收端缓冲区有该数量才允许播放
 #define SAMPLERATE      32000 //定义采样率
 #define READMSFORONCE     20 //采样周期(ms)
 
@@ -59,7 +59,7 @@ typedef struct AudioBuffer
 
 #define SOUND_OSS                1
 #define SOUND_ALSA               2
-#define SOUND_INTERFACE          SOUND_ALSA
+#define SOUND_INTERFACE          SOUND_OSS
 
 #define CHANNELS                 1
 
@@ -72,4 +72,6 @@ typedef struct AudioBuffer
 #define SILK_AUDIO_CODEC         0
 #define SPEEX_AUDIO_CODEC        1
 #define SERVER_PORT           9000
+
+#define HAVE_FPU                 1
 #endif
