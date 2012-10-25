@@ -59,4 +59,7 @@ typedef struct AudioBuffer
 #define SPEEX_AUDIO_CODEC        1
 
 #define DIRECT_SEND_SPEEX_BITS   0 //直接发送编码好的文件
+
+#define VAD_ENABLED              0
+
 #endif

@@ -375,7 +375,7 @@ void * capture_audio_thread(void *para)
         sem_post(&sem_capture); 
         sem_post(&sem_capture);                     
         gettimeofday(&tv, &tz);
-        ((AUDIOBUFFER*)(pWriteHeader->buffer_capture))->FrameNO = FrameNO++;
+        //((AUDIOBUFFER*)(pWriteHeader->buffer_capture))->FrameNO = FrameNO++;
         //((AUDIOBUFFER*)(pWriteHeader->buffer))->sec = tv.tv_sec;
         //((AUDIOBUFFER*)(pWriteHeader->buffer))->usec = tv.tv_usec;
         //printf("capture NO=%5d \n", FrameNO);
@@ -451,10 +451,11 @@ void * network_send_thread(void *p)
     int tmp;
     SpeexPreprocessState *st;
     float f;
-    //int vad;
 #endif
 
 #if SPEEX_AUDIO_CODEC
+
+#if VAD_ENABLED
    st = speex_preprocess_state_init(SAMPLERATE/1000*READMSFORONCE, SAMPLERATE);
    tmp=1;
    speex_preprocess_ctl(st, SPEEX_PREPROCESS_SET_DENOISE, &tmp);
@@ -471,6 +472,9 @@ void * network_send_thread(void *p)
    speex_preprocess_ctl(st, SPEEX_PREPROCESS_SET_DEREVERB_DECAY, &f);
    f=.0;
    speex_preprocess_ctl(st, SPEEX_PREPROCESS_SET_DEREVERB_LEVEL, &f);
+#endif
+
+
 
     /*Create a new encoder state in narrowband mode*/
     state = speex_encoder_init(&speex_uwb_mode);
@@ -517,9 +521,6 @@ void * network_send_thread(void *p)
 
 #if SPEEX_AUDIO_CODEC
 
-#if 0
-            pReadHeader->vad = speex_preprocess_run(st, pReadHeader->buffer_capture);
-#endif
             speex_bits_reset(&bits);
 
             /*Encode the frame*/
@@ -531,6 +532,11 @@ void * network_send_thread(void *p)
 #if RECORD_ENCODE_FILE
             fwrite(&(pReadHeader->count_encode), sizeof(int), 1, fp_encode); 
             fwrite(pReadHeader->buffer_encode, pReadHeader->count_encode, 1, fp_encode);
+#endif
+
+
+#if VAD_ENABLED
+            pReadHeader->vad = speex_preprocess_run(st, pReadHeader->buffer_capture);
 #endif
 
 #endif
