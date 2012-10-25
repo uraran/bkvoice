@@ -9,7 +9,7 @@
 #include <semaphore.h>
 #include <sys/time.h>
 #include "config.h"
-#include "wb_vad.h"
+//#include "wb_vad.h"
 #if (SOUND_INTERFACE == SOUND_OSS)
 #include <sys/soundcard.h>
 #elif (SOUND_INTERFACE == SOUND_ALSA)
