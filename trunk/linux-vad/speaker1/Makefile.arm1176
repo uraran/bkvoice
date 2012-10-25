@@ -3,8 +3,8 @@ GCC=$(CROSS_COMPILE)gcc
 
 all:speaker testplay_oss testplay_alsa
 
-speaker:speaker.o wb_vad.o 
-	$(GCC) -o speaker speaker.o amr_wb_vad/wb_vad.o -lpthread -lm  -I./amr_wb_vad \
+speaker:speaker.o 
+	$(GCC) -o speaker speaker.o -lpthread -lm   \
     -L$(PWD)/../../libavcodec/install_sdk/arm1176/lib/ -lSKP_SILK_SDK  -g -lspeex -lspeexdsp -static -lm
 	cp speaker /tftpboot
 
@@ -29,11 +29,9 @@ testplay_oss.o:testplay_oss.c config.h
 	$(GCC) -c -o testplay_oss.o testplay_oss.c
 
 speaker.o:speaker.c config.h
-	$(GCC) -c -o speaker.o speaker.c -I./amr_wb_vad -I$(PWD)/../../libavcodec/install_sdk/arm1176/include/ \
+	$(GCC) -c -o speaker.o speaker.c  -I$(PWD)/../../libavcodec/install_sdk/arm1176/include/ \
     -L$(PWD)/../../libavcodec/install_sdk/arm1176/lib/ -lSKP_SILK_SDK 
 
-wb_vad.o:amr_wb_vad/wb_vad.c
-	$(GCC) -c -o amr_wb_vad/wb_vad.o amr_wb_vad/wb_vad.c
 
 clean:
 	rm -rf *.o speaker /tftpboot/speaker testplay_oss /tftpboot/testplay_oss testplay_alsa /tftpboot/testplay_alsa

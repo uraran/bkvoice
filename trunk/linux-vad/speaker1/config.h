@@ -48,7 +48,7 @@ typedef struct AudioBuffer
     struct AudioBuffer  *pNext;
     int count_recv;//接收数据数量
     int count_decode;//解码后数据数量
-
+  
     int FrameNO;//包序号
     time_t time;
     int  vad;//1表示有语音，为0表示静音或者噪音
