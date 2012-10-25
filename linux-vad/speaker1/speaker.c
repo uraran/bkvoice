@@ -9,7 +9,6 @@
 #include <semaphore.h>
 #include <sys/time.h>
 #include "config.h"
-//#include "wb_vad.h"
 #if (SOUND_INTERFACE == SOUND_OSS)
 #include <sys/soundcard.h>
 #elif (SOUND_INTERFACE == SOUND_ALSA)
@@ -212,7 +211,8 @@ void * network_recv_thread(void *p)
                 fwrite(p_recv_header->buffer_recv, p_recv_header->count_recv, 1, fp_recv_codec);
 #endif
 
-                //printf("p_recv_header->count_recv=%d, p_recv_header->No=%d, p_recv_header->FrameN0=%d, p_recv_header->vad=%d, p_recv_header->count_encode=%d\n", p_recv_header->count_recv, p_recv_header->No, p_recv_header->FrameNO, p_recv_header->vad, p_recv_header->count_encode);
+                //printf_debug("p_recv_header->count_recv=%d, p_recv_header->No=%d, p_recv_header->FrameN0=%d, p_recv_header->vad=%d, p_recv_header->count_encode=%d\n", p_recv_header->count_recv, p_recv_header->No, p_recv_header->FrameNO, p_recv_header->vad, p_recv_header->count_encode);
+                printf_debug("ount_recv=%d,No=%d, FrameN0=%d, vad=%d, count_encode=%d\n", p_recv_header->count_recv, p_recv_header->No, p_recv_header->FrameNO, p_recv_header->vad, p_recv_header->count_encode);
             }
             else
             {
@@ -533,7 +533,7 @@ void* play_audio_thread(void *para)
     time_t timep;
     struct tm *p;
     int result;
-
+    int nZeroPackageCount;
 
 #if RECORD_PLAY_PCM 
     FILE * fp = fopen("play.pcm", "wb");
@@ -605,6 +605,34 @@ void* play_audio_thread(void *para)
             }
             else
             {
+#if VAD_ENABLED
+                if(p_play_header->vad == 0)
+                {
+                    nZeroPackageCount++;
+                }
+                else
+                {
+                    nZeroPackageCount = 0;
+                }
+
+			      if((p_play_header->vad==0) && (nZeroPackageCount > 5))
+			      {
+				      //printf("z=%d\n", nZeroPackageCount);
+				      nZeroPackageCount++;
+				      while(p_play_header->pNext != p_decode_header)
+				      {
+				          printf_debug("略过数据包 %d,n_recv=%d\n", p_play_header->FrameNO, n_recv);					        
+                  pthread_mutex_lock(&mutex_lock);
+                  p_play_header->received = 0;//数据已播放，不再有效
+                  p_play_header->decoded = 0;//数据已播放，不再有效
+                  n_decode--;
+					        p_play_header = p_play_header->pNext;
+                  pthread_mutex_unlock(&mutex_lock);
+				      }
+			      }
+			      else
+#endif
+{
                 //printf("result=%d\n", result);
                 if(result != p_play_header->count_decode)
                 {   
@@ -625,6 +653,11 @@ void* play_audio_thread(void *para)
                 }
 #endif
                 p_play_header = p_play_header->pNext;
+}
+
+
+
+
             }
         }
         else
@@ -923,6 +956,21 @@ int main(int argc, char **argv)
             case 'e':
             case 'E':
                 app_setting.error_printf_enabled = !app_setting.error_printf_enabled;
+                break;
+
+            case 'i':
+            case 'I':
+                printf("n_recv=%d,n_decode=%d\n", n_recv, n_decode);
+                break;
+
+            case 'k':
+            case 'K':
+                printf("p_recv_header->FrameNO=%d,p_decode_header->FrameNO=%d,p_play_header->FrameNO=%d\n", p_recv_header->FrameNO, p_decode_header->FrameNO, p_play_header->FrameNO);
+                break;
+
+            case 'f':
+            case 'F':
+                printf("p_recv_header->No=%d,p_decode_header->No=%d,p_play_header->No=%d\n", p_recv_header->No, p_decode_header->No, p_play_header->No);
                 break;
 
             case 'A':
