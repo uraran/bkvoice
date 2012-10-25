@@ -5,7 +5,7 @@ all:speaker testplay_oss testplay_alsa
 
 speaker:speaker.o wb_vad.o 
 	$(GCC) -o speaker speaker.o amr_wb_vad/wb_vad.o -lpthread -lm  -I./amr_wb_vad \
-    -L$(PWD)/../../libavcodec/install_sdk/arm920t/lib/ -lSKP_SILK_SDK  -g -lspeex -lspeexdsp
+    -L$(PWD)/../../libavcodec/install_sdk/arm920t/lib/ -lSKP_SILK_SDK  -g -lspeex -lspeexdsp -static -lm
 	cp speaker /tftpboot
 
 

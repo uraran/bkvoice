@@ -9,7 +9,7 @@
 #define traceprintf
 #endif
 
-#define BUFFER_COUNT      10   //接收端缓冲区有该数量才允许播放
+#define BUFFER_COUNT      0   //接收端缓冲区有该数量才允许播放
 #define SAMPLERATE      32000 //定义采样率
 #define READMSFORONCE     20 //采样周期(ms)
 
@@ -55,6 +55,14 @@ typedef struct AudioBuffer
     int  count_encode;//压缩后数据长度
     unsigned char buffer_recv[SAMPLERATE/1000*READMSFORONCE*sizeof(short)];//接收缓冲区
 } __attribute__ ((packed)) AUDIOBUFFER;
+
+
+struct Setting
+{
+    char debug_printf_enabled:1; //是否输出调试信息
+    char notice_printf_enabled:2;//是否输出警告信息
+    char error_printf_enabled:3; //是否输出错误信息
+};
 
 
 #define SOUND_OSS                1

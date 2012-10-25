@@ -37,6 +37,12 @@
 #define MAX_LBRR_DELAY          2
 #endif
 
+struct Setting app_setting;
+
+#define printf_debug(fmt, ...)    if(app_setting.debug_printf_enabled)   printf(fmt, __VA_ARGS__)
+#define printf_notice(fmt, ...)   if(app_setting.notice_printf_enabled)  printf(fmt, __VA_ARGS__)
+#define printf_error(fmt, ...)    if(app_setting.error_printf_enabled)   printf(fmt, __VA_ARGS__)
+
 AUDIOBUFFER audiobuffer[BUFFERNODECOUNT];
 AUDIOBUFFER *p_recv_header = NULL;//接收链表首指针
 AUDIOBUFFER *p_decode_header = NULL;//解码链表首指针
@@ -195,7 +201,7 @@ void * network_recv_thread(void *p)
 
 
 #if SILK_AUDIO_CODEC || SPEEX_AUDIO_CODEC
-            printf("n_recv=%d, n_decode=%d\n", n_recv, n_decode);
+            printf_debug("n_recv=%d, n_decode=%d\n", n_recv, n_decode);
             if(p_recv_header->received == 0)
             {
                 result = recvfrom(fdsocket, &(p_recv_header->FrameNO), sizeof(p_recv_header->buffer_recv)+sizeof(int)*3+sizeof(time_t), 0, (struct sockaddr*)&remote_addr, &socklen);
@@ -210,7 +216,7 @@ void * network_recv_thread(void *p)
             }
             else
             {
-                printf("p_recv_header->received != 0\n");
+                printf_notice("p_recv_header->received != 0\n", "");
             }
 #else
             result = recvfrom(fdsocket, p_recv_header->buffer_recv, sizeof(p_recv_header->buffer_recv)+sizeof(int)+sizeof(int), 0, (struct sockaddr*)&remote_addr, &socklen);
@@ -253,7 +259,7 @@ void * network_recv_thread(void *p)
                 //sem_post(&sem_recv);
                 sem_post(&sem_recv);
 #else
-                traceprintf("收到数据 %d byte\n", result);
+                printf_debug("收到数据 %d byte\n", result);
                 //printf("rNO=%d\n", p_recv_header->FrameNO);
                 p_recv_header->count_recv = SAMPLERATE/1000*READMSFORONCE*sizeof(short);
                 pthread_mutex_lock(&mutex_lock);
@@ -284,7 +290,7 @@ void * network_recv_thread(void *p)
     fclose(fp_recv_codec);
 #endif
 
-    printf("数据接收线程已经关闭 data recv thread is closed\n");
+    printf_notice("数据接收线程已经关闭 data recv thread is closed\n", "");
     close(fdsocket);    
 }
 
@@ -457,7 +463,7 @@ void* decode_audio_thread(void *p)
 
             if( result ) 
             {
-                printf( "解码错误 returned result=%d,p_decode_header->count_recv= %d,No=%d\n", result, p_decode_header->count_recv, p_decode_header->No);
+                printf_error( "解码错误 returned result=%d,p_decode_header->count_recv= %d,No=%d\n", result, p_decode_header->count_recv, p_decode_header->No);
             }
             else
             {
@@ -547,7 +553,7 @@ void* play_audio_thread(void *para)
     }
 
 
-    printf("设置写音频设备参数 setup play audio device parament\n");
+    printf_debug("设置写音频设备参数 setup play audio device parament\n", "");
     ioctl(fdsoundplay, SNDCTL_DSP_SPEED, &Frequency);//采样频率
     ioctl(fdsoundplay, SNDCTL_DSP_SETFMT, &format);//音频设备位宽
     ioctl(fdsoundplay, SNDCTL_DSP_CHANNELS, &channels);//音频设备通道
@@ -576,7 +582,7 @@ void* play_audio_thread(void *para)
         {
             if(!p_play_header->decoded)
             { 
-                printf("忽略%d\n", p_play_header->FrameNO);
+                printf_debug("忽略%d\n", p_play_header->FrameNO);
                 continue;
             }
 #if 0
@@ -602,7 +608,7 @@ void* play_audio_thread(void *para)
                 //printf("result=%d\n", result);
                 if(result != p_play_header->count_decode)
                 {   
-                    printf("result=%d\n", result);
+                    printf_debug("result=%d\n", result);
                 }
 
                 pthread_mutex_lock(&mutex_lock);
@@ -615,7 +621,7 @@ void* play_audio_thread(void *para)
                 result = fwrite(p_play_header->buffer_decode, p_play_header->count_decode, 1, fp);
                 if(result != p_play_header->count_decode)
                 {
-                    printf("写入数据长度与预期不符\n");
+                    printf_error("写入数据长度与预期不符\n");
                 }
 #endif
                 p_play_header = p_play_header->pNext;
@@ -623,7 +629,7 @@ void* play_audio_thread(void *para)
         }
         else
         {
-            printf("n_decode=%d <= buffer_count=%d,n_recv=%d,不写声卡\n", n_decode, buffer_count, n_recv);
+            printf_debug("n_decode=%d <= buffer_count=%d,n_recv=%d,不写声卡\n", n_decode, buffer_count, n_recv);
         }
         //fwrite(buffer, sizeof(buffer), 1, fprecord);
     }
@@ -852,7 +858,7 @@ int main(int argc, char **argv)
     //fprecord = fopen("r.pcm", "wb");
 
     //fclose(fprecord);
-    printf("SAMPLERATE/1000*READMSFORONCE*sizeof(short)=%d\n", SAMPLERATE/1000*READMSFORONCE*sizeof(short));
+    printf_debug("SAMPLERATE/1000*READMSFORONCE*sizeof(short)=%d\n", SAMPLERATE/1000*READMSFORONCE*sizeof(short));
 
     flag_capture_audio = 1;
     flag_play_audio    = 1;
@@ -890,7 +896,7 @@ int main(int argc, char **argv)
             perror("Semaphore recv initialization failed");
         }
 
-        printf("创建播放与接收线程\n");
+        printf_debug("创建播放与接收线程\n", "");
         iret2 = pthread_create(&pthread_t_play_audio, NULL, play_audio_thread, (void*) NULL);  
         iret2 = pthread_create(&pthread_t_network_recv, NULL, decode_audio_thread, (void*) NULL);    
         iret2 = pthread_create(&pthread_t_decode_audio, NULL, network_recv_thread, (void*) NULL);    
@@ -904,6 +910,21 @@ int main(int argc, char **argv)
         cmd = getchar();
         switch(cmd)
         {
+            case 'd':
+            case 'D':
+                app_setting.debug_printf_enabled = !app_setting.debug_printf_enabled;
+                break;
+
+            case 'n':
+            case 'N':
+                app_setting.notice_printf_enabled = !app_setting.notice_printf_enabled;
+                break;
+
+            case 'e':
+            case 'E':
+                app_setting.error_printf_enabled = !app_setting.error_printf_enabled;
+                break;
+
             case 'A':
                 printf("A");
                 break;
@@ -926,7 +947,7 @@ int main(int argc, char **argv)
     }
     else if(runmode == RUNMODE_SERVER)
     {
-        printf("清除发送线程\n");
+        printf_debug("清除发送线程\n", "");
         remove_play_audio();
         remove_network_recv();
     }
